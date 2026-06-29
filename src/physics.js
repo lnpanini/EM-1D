@@ -303,7 +303,11 @@ export function dipole(d) {
   };
 
   // Oriented along z (matches the z-axis cylinder builder and the monopole convention).
-  const armLen = (Lres - gap) / 2;
+  let armLen = (Lres - gap) / 2;
+  if (!(armLen > 0)) {
+    armLen = Lres / 2;
+    warnings.push('feed gap ≥ resonant length; arms degenerate (gap ignored for geometry)');
+  }
   const geometry = [
     { shape: 'cylinder', material: 'pec', center: [0, 0, gap / 2 + armLen / 2], radius: a, height: armLen, axis: 'z' },
     { shape: 'cylinder', material: 'pec', center: [0, 0, -(gap / 2 + armLen / 2)], radius: a, height: armLen, axis: 'z' },
@@ -486,10 +490,7 @@ export function cpCircular(d) {
   const warnings = [];
 
   const disk = circularDisk(d);
-  warnings.push(...disk.warnings);
-  if (disk.metrics.matchable === false) {
-    warnings.push('CP: edge resistance < target; port not matchable by inward probe');
-  }
+  warnings.push(...disk.warnings); // includes the not-matchable message when applicable
   const a = disk.metrics.a;
   const Q = disk.metrics.Qt;
   const f0 = num(d.frequencyGHz);
@@ -520,9 +521,11 @@ export function cpCircular(d) {
     disk.geometry[0],
     disk.geometry[1],
     {
+      // Single-feed CP uses ONE perturbation mechanism: two opposite truncations
+      // (total ΔS = S/(2Q)). The slot (slotLength/slotWidth in metrics) is the
+      // alternative; emitting both would double-perturb, so geometry uses cuts only.
       shape: 'segment', material: 'pec', center: [0, 0, t_mm / 2], radius: a, height: t_mm, axis: 'z',
       cuts: [{ angleDeg: 45, depth: truncationDepth }, { angleDeg: 225, depth: truncationDepth }],
-      slot: { lengthMm: slotLength, widthMm: slotWidth, angleDeg: feedAngleDeg },
     },
     { shape: 'feed', material: 'feed', p1: [px, py, 0], p2: [px, py, -h_mm], impedance: Zin },
   ];
@@ -801,11 +804,13 @@ export function buildVba(result, design) {
         if (depth <= 0) return;
         // chord width of a segment of depth `depth` on radius R: 2*sqrt(2R·depth − depth²)
         const chordW = 2 * Math.sqrt(Math.max(0, 2 * R * depth - depth * depth));
-        // thin radial sliver built along +x spanning radius [R−depth, R], then rotated to angle
+        // thin radial sliver spanning radius [R−depth, R], oversized outward by `margin`
+        // (and tangentially) so the tool clears the disk rim for a robust Boolean cut.
+        const margin = Math.max(0.1, 0.02 * R);
         const tool = {
           shape: 'box', material: p.material,
-          center: [R - depth / 2, 0, cz],
-          size: { x: depth, y: chordW, z: hh },
+          center: [R - depth / 2 + margin / 2, 0, cz],
+          size: { x: depth + margin, y: chordW + 2 * margin, z: hh },
         };
         const name = `seg_${i}_cut_${j}`;
         body.push(vbaBrick(tool, name, comp));
