@@ -20,8 +20,8 @@ test('every type maps to finite, non-empty mesh specs', () => {
       const coords = [...(s.pos || []), ...(s.p1 || []), ...(s.p2 || []), ...(s.size || [])];
       for (const c of coords) assert.ok(Number.isFinite(c), `${t}: finite coord`);
     }
-    // every type has at least one conductor (copper) and a feed line
-    assert.ok(specs.some((s) => s.color === 0xd8893b), `${t}: has PEC-colored solid`);
+    // every type has at least one conductor (steel) and a feed line
+    assert.ok(specs.some((s) => s.color === 0xbfc7d0), `${t}: has PEC-colored solid`);
     assert.ok(specs.some((s) => s.kind === 'line'), `${t}: has feed line`);
   }
 });
@@ -35,8 +35,8 @@ test('shape kinds match the antenna geometry', () => {
 test('materialStyle: substrate translucent, pec opaque copper', () => {
   assert.equal(materialStyle('substrate').transparent, true);
   assert.ok(materialStyle('substrate').opacity < 1);
-  assert.equal(materialStyle('pec').color, 0xd8893b);
-  assert.equal(materialStyle('feed').color, 0xff5555);
+  assert.equal(materialStyle('pec').color, 0xbfc7d0);
+  assert.equal(materialStyle('feed').color, 0xe0524d);
 });
 
 test('segmentOutline truncates the disk (fewer-than-circle extent along cut)', () => {

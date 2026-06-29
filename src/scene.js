@@ -2,12 +2,18 @@
 // No THREE / DOM imports so it is unit-testable in Node. viewer.js turns these
 // plain descriptors into actual Three.js meshes.
 
+// Material colors match the EM-1D Design System token map (tokens.css):
+// conductor steel #BFC7D0, dielectric substrate #2E7D5B (translucent), feed #E0524D.
+export const MAT_CONDUCTOR = 0xbfc7d0;
+export const MAT_SUBSTRATE = 0x2e7d5b;
+export const MAT_FEED = 0xe0524d;
+
 export function materialStyle(material) {
   switch (material) {
-    case 'substrate': return { color: 0x2e7d5b, opacity: 0.32, transparent: true };
-    case 'feed': return { color: 0xff5555, opacity: 1, transparent: false };
+    case 'substrate': return { color: MAT_SUBSTRATE, opacity: 0.36, transparent: true };
+    case 'feed': return { color: MAT_FEED, opacity: 1, transparent: false };
     case 'pec':
-    default: return { color: 0xd8893b, opacity: 1, transparent: false }; // copper
+    default: return { color: MAT_CONDUCTOR, opacity: 1, transparent: false }; // steel PEC
   }
 }
 
@@ -63,7 +69,7 @@ export function geometryToMeshSpecs(geometry) {
     } else if (p.shape === 'segment') {
       specs.push({ kind: 'shape', outline: segmentOutline(p), pos: [...p.center], ...style });
     } else if (p.shape === 'feed') {
-      specs.push({ kind: 'line', p1: [...p.p1], p2: [...p.p2], color: 0xff5555 });
+      specs.push({ kind: 'line', p1: [...p.p1], p2: [...p.p2], color: MAT_FEED });
     }
   }
   return specs;
