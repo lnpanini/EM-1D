@@ -230,8 +230,8 @@ These are the assertion set.
 **Rect patch** (εr=4.4, h=1.6mm, f=2.4GHz) (tol):
 - `W=38.010 mm` (0.05), `εeff0=4.0431` (0.01), `εeff(f)=4.0498` (0.01) **[KJ with fn=f·h_cm=0.384]**,
   `ΔL=0.737 mm` (0.01), `L=29.56 mm` (0.2, acceptance window 28–30 mm).
-- `I1=1.14798`, `I12=0.70194` (1e-3); `G1=9.69285e-4 S`, `G12=5.92681e-4 S` (1e-6);
-  `Rin0=320.11 Ω` (2).
+- `I1=1.14798` (1e-3); `G1=9.69285e-4 S` (1e-6); `I12`/`G12` evaluated at the corrected
+  resonant length `L`: `G12=5.8283e-4 S` (2e-6), `Rin0=322.14 Ω` (2).
 
 **Circular disk** (εr=4.4, h=1.6mm, f=2.4GHz, Zin=50) (tol):
 - `F=17.4555 mm` (0.05), `a=16.945 mm` (0.05), `ae=17.467 mm` (0.05), `fr_check=2.3984 GHz` (0.005).
