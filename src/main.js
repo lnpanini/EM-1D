@@ -11,6 +11,10 @@ const STRING_FIELDS = new Set(['type', 'polarization']);
 
 const $ = (id) => document.getElementById(id);
 
+// 3D viewer is optional: lazily + guardedly imported so headless/no-WebGL
+// environments (and the Node smoke test) still load main.js without it.
+let viewer = null;
+
 function readDesign() {
   const design = {};
   for (const field of FIELDS) {
@@ -114,6 +118,7 @@ function render() {
   fillMetrics(type, result.metrics || {});
   showWarnings(result.warnings);
   $('vba').value = buildVba(result, design);
+  if (viewer) viewer.update(result.geometry);
 }
 
 function vbaFor(design) {
@@ -150,3 +155,11 @@ $('download').addEventListener('click', () => {
 
 applyVisibility($('type').value);
 render();
+
+// Bring up the 3D viewer if the environment supports it (browser + WebGL).
+import('./viewer.js')
+  .then((m) => {
+    viewer = m.createViewer($('viewer'));
+    if (viewer) render();
+  })
+  .catch(() => { /* viewer unavailable — the rest of the app works without it */ });
