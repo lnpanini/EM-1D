@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>EM-1D Antenna CST VBA Generator</title>
+    <link rel="stylesheet" href="/src/styles.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <section class="hero">
+        <div>
+          <p class="eyebrow">Vercel-ready CST workflow</p>
+          <h1>Generate and tune CST antenna macros from the browser.</h1>
+          <p>Pick an antenna topology, tune practical dimensions, preview first-order estimates, and export a CST VBA macro.</p>
+        </div>
+        <button id="download">Download .vba</button>
+      </section>
+
+      <section class="grid">
+        <form class="card controls" id="controls">
+          <h2>Design inputs</h2>
+          <label>Antenna type<select id="type"><option value="patch">Microstrip patch</option><option value="dipole">Center-fed dipole</option><option value="monopole">Quarter-wave monopole</option></select></label>
+          <label>Target frequency (GHz)<input id="frequencyGHz" type="number" step="0.01" min="0.1" value="2.45" /></label>
+          <label>Substrate εr<input id="substrateEr" type="number" step="0.1" min="1" value="4.4" /></label>
+          <label>Substrate height (mm)<input id="substrateHeightMm" type="number" step="0.1" min="0.1" value="1.6" /></label>
+          <label>Conductor thickness (mm)<input id="conductorThicknessMm" type="number" step="0.001" min="0.001" value="0.035" /></label>
+          <label>Wire radius (mm)<input id="wireRadiusMm" type="number" step="0.05" min="0.05" value="0.75" /></label>
+          <label>Ground length (mm)<input id="groundLengthMm" type="number" step="1" min="1" value="90" /></label>
+          <label>Ground width (mm)<input id="groundWidthMm" type="number" step="1" min="1" value="90" /></label>
+          <label>Feed gap (mm)<input id="feedGapMm" type="number" step="0.1" min="0.1" value="1" /></label>
+          <label>Port impedance (Ω)<input id="portImpedance" type="number" step="1" min="1" value="50" /></label>
+        </form>
+
+        <section class="card summary">
+          <h2>Estimated geometry</h2>
+          <div class="metrics">
+            <span>λ0</span><strong id="lambda0"></strong>
+            <span>Patch L × W</span><strong id="patchSize"></strong>
+            <span>Dipole arm</span><strong id="dipoleArm"></strong>
+            <span>Monopole height</span><strong id="monopoleHeight"></strong>
+            <span>Patch feed inset</span><strong id="feedInset"></strong>
+          </div>
+          <p class="note">These are starting dimensions for CST sweeps, not final certified designs. Tune in CST with your chosen solver, ports, mesh, substrate losses, and manufacturing constraints.</p>
+        </section>
+
+        <section class="card code">
+          <div class="codeHead"><h2>CST VBA output</h2><button type="button" id="copy">Copy</button></div>
+          <textarea id="vba" readonly spellcheck="false"></textarea>
+        </section>
+      </section>
+    </main>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
