@@ -1,13 +1,33 @@
 # EM-1D
 
-EM-1D is a browser-based antenna design helper for generating CST Studio Suite VBA macros. It is designed to be deployed as a static Vercel site.
+EM-1D is a browser-based antenna **synthesis** tool: you enter the design requirements
+(frequency, substrate, target impedance, …) and it computes the geometry, renders it in a live
+3D view, and exports a CST Studio Suite VBA macro. Zero runtime dependencies; deploys as a static
+Vercel site.
 
 ## Features
 
-- Interactive tuning controls for microstrip patch, center-fed dipole, and quarter-wave monopole antennas.
-- First-order geometry estimates for wavelength, patch dimensions, dipole arm length, monopole height, and patch feed inset.
-- Live CST VBA preview with copy-to-clipboard support.
-- One-click `.vba` download for importing or running in CST Studio Suite.
+- **7 antenna types**, each synthesized from requirements → geometry:
+  - Rectangular microstrip patch · center-fed dipole · quarter-wave monopole
+  - Circular disk patch · annular ring patch · circularly-polarized (CP) circular patch · UWB planar disc monopole
+- **Accurate closed-form physics** (not just first-order rules): Hammerstad-Jensen + Kirschning-Jansen
+  dispersion and numerically-integrated Balanis radiation conductance for patches; induced-EMF
+  impedance with resonance root-finding for wires; cavity-model Bessel/Neumann synthesis for the
+  circular family. Every formula is cross-checked against Balanis/Garg/Abramowitz-Stegun reference
+  values in the test suite.
+- **Live 3D viewer** (Three.js): rotate / zoom / pan a color-coded model that rebuilds on every
+  parameter change.
+- **Type-specific CST VBA** export with live preview, copy-to-clipboard, and one-click `.vba` download.
+- A dynamic UI that shows only the inputs and metrics relevant to the selected antenna.
+
+## Testing
+
+```bash
+npm test            # node --test: physics reference values, robustness, scene mapping, DOM smoke
+```
+
+The physics engine (`src/physics.js`) and 3D scene mapping (`src/scene.js`) are pure and
+DOM-free, so the full suite runs headlessly in Node.
 
 ## Development
 
