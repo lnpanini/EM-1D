@@ -103,8 +103,10 @@ Shared inputs (where applicable): `frequencyGHz`, `substrateEr`, `substrateHeigh
 - εeff static (Hammerstad-Jensen): `εeff0 = (εr+1)/2 + (εr−1)/2·(1+12/u)^(−a(u)·b(εr))`, `u=W/h`,
   `a(u)=1 + (1/49)ln((u⁴+(u/52)²)/(u⁴+0.432)) + (1/18.7)ln(1+(u/18.1)³)`,
   `b(εr)=0.564·((εr−0.9)/(εr+3))^0.053`.
-- Dispersion (Kirschning-Jansen): `εeff(f)=εr − (εr−εeff0)/(1+P(fn))`, `fn=f_GHz·h_mm`, with
-  `P=P1·P2·[(0.1844+P3·P4)fn]^1.5763` and the `P1..P4` coefficient formulas.
+- Dispersion (Kirschning-Jansen): `εeff(f)=εr − (εr−εeff0)/(1+P(fn))`, **`fn = f_GHz · h_cm`
+  (= `f_GHz · h_mm / 10`)** — the `P1..P4` constants are calibrated for f·h in GHz·cm; using mm
+  gives a 10× overstated dispersion. `P=P1·P2·[(0.1844+P3·P4)fn]^1.5763` and the `P1..P4`
+  coefficient formulas (VERIFIED — see §10).
 - `ΔL = 0.412 h (εeff+0.3)(u+0.264)/((εeff−0.258)(u+0.8))`.
 - `L = c/(2f√εeff(f)) − 2ΔL`.
 - Edge resistance via Simpson integration of Balanis `I1`,`I12`:
@@ -135,8 +137,12 @@ Shared inputs (where applicable): `frequencyGHz`, `substrateEr`, `substrateHeigh
 - `F = 87.876/(f√εr)` (mm, GHz); physical radius
   `a = F/√(1 + (2h/(π εr F))(ln(πF/2h)+1.7726))`.
 - Effective radius `ae = a√(1 + (2h/(π εr a))(ln(πa/2h)+1.7726))`; check `fr=87.876/(ae√εr)`.
-- `Grad = (k0 ae)²/480 · ∫₀^{π/2} [J1'(z)² + cos²θ (J1(z)/z)²] sinθ dθ`, `z=k0 ae sinθ`,
-  `J1'(z)=J0(z)−J1(z)/z`. Add `Gc`,`Gd` (cavity-loss conductances) → `Redge=1/(Grad+Gc+Gd)`.
+- `Grad = (k0 ae)²/120 · ∫₀^{π/2} [J1'(z)² + cos²θ (J1(z)/z)²] sinθ dθ`, `z=k0 ae sinθ`,
+  `J1'(z)=J0(z)−J1(z)/z`. **Denominator is `/120`, not `/480`** (VERIFIED — see §10; equivalently
+  keep `/480` but use Balanis' `J0−J2`,`J0+J2` since `J0−J2=2J1'` and `J0+J2=2J1/z`).
+- Cavity-loss conductances (Balanis Q-based, edge-referenced): with
+  `C = ω0 ε0 εr π ae² (1−1/χ11²)/(2h)`, `δs=1/√(πf μ0 σ)`, `Qc=h/δs`, `Qd=1/tanδ`, then
+  `Gc=C/Qc`, `Gd=C/Qd`. `Redge = 1/(Grad+Gc+Gd)`.
 - Probe match (Newton-Raphson): solve `J1(kρ0)=J1(1.841183)·√(Zin/Redge)`, `k=1.841183/ae`,
   `ρ0=x/k`; **warn "not matchable by inward probe" if `Redge<Zin`**.
 - Q/BW analogous to disk cavity. Recommended ground radius `a+4h`.
@@ -160,7 +166,10 @@ Shared inputs (where applicable): `frequencyGHz`, `substrateEr`, `substrateHeigh
 - Required input adds `polarization` (LHCP/RHCP). Reuse §6.4 radius synthesis for `a`, `Q`.
 - Perturbation area ratio **`ΔS/S = 1/(2Q)`** (TO VERIFY — see §10); split freqs
   `f1,2=f0(1∓1/(2Q))`; AR 3dB bandwidth ≈ `0.348/Q`.
-- Truncated-segments option: depth `Δb=a·(3π/(8√2 Q))^{2/3}`. Slot option: `Ls=a√(π/(2αQ))`, `Ws=αLs`, α≈0.1.
+- Truncated-segments option (TWO symmetric segments, total `ΔS=S/(2Q)`): depth
+  **`Δb=a·(3π/(16√2 Q))^{2/3}`** (VERIFIED — see §10; the `8√2` form puts `S/(2Q)` into *each*
+  segment → total `S/Q`, double-perturbed). Slot option (single slot, area `S/(2Q)`):
+  `Ls=a√(π/(2αQ))`, `Ws=αLs`, α≈0.1.
 - Feed on the ±45° line (sign set by LH/RH) at `rf≈0.35a`.
 - Geometry: patch `cylinder` (disk) with two truncation `segment`s (or a slot), probe at 45°.
 
@@ -203,31 +212,64 @@ type needs and the metrics each type produces; irrelevant rows are hidden (not s
 
 ## 9. Verification plan (`test/physics.test.mjs`, Node, zero-dep)
 
-Numerical-core asserts (tolerances in parens):
-- `Si(π/2)=1.37076`, `Si(π)=1.85194`, `Ci(1)=0.33740`, `Ci(2)=0.42298` (1e-3).
-- `J0(0)=1`, `J0(2.40483)≈0` (1e-3), `J1(1.84118)=0.58187` (1e-3), `Y0(1)=0.08826`, `Y1(1)=−0.78121` (1e-3).
+All reference values below were **independently derived and cross-checked against Abramowitz-Stegun,
+Balanis, and Garg** by a verification workflow (8 agents, each with its own Node re-implementation).
+These are the assertion set.
 
-Model asserts (engineering tolerances):
-- Thin half-wave dipole (a/λ tiny, L=0.5λ0): `Zin ≈ 73 + j42.5 Ω` (±3 Ω / ±5 Ω).
-- Resonant dipole at 300 MHz, a=1mm: `X≈0` (±1 Ω), length ≈ 0.47–0.48 λ0.
-- Monopole ≈ ½ dipole (R within 1 Ω of half).
-- FR4 rect patch (εr=4.4, h=1.6mm, 2.4 GHz): `L≈28–29 mm`, `W≈38 mm`.
-- Circular disk (εr=4.4, h=1.6mm, 2.4 GHz): `a≈16–17 mm` vs reference; `Redge` a few-hundred Ω.
-- Annular ring ρ=2: first root `x0∈[0.6,1.0]`; `b=2a`; finite positive radii.
-- CP circular: `f1<f0<f2` symmetric; `Δb>0`; AR BW% > 0.
-- Disc monopole f_L=3.1 GHz, g=0.3mm: disc radius `r≈7–8 mm`.
-- Every type: `synthesize()` returns finite metrics + non-empty geometry; blank/invalid inputs
-  degrade gracefully (no NaN/Infinity reaching VBA).
+**Numerical core** (tol):
+- `Si(π/2)=1.37076`, `Si(π)=1.85194`, `Ci(1)=0.33740`, `Ci(2)=0.42298`, `Cin(2π)=2.43765` (1e-4).
+- `J0(0)=1` (1e-12), `J0(2.40483)≈0` (1e-5), `J1(1.84118)=0.581865` (1e-5), `J2(3)=0.486091` (1e-5).
+- `Y0(1)=0.088257`, `Y1(1)=−0.781213`, `Y0(2)=0.510376`, `Y1(2)=−0.107032` (1e-5).
 
-Plus: `node --check src/main.js src/physics.js`; DOM-stubbed smoke test rendering all 7 types.
+**Dipole / monopole** (tol):
+- Thin half-wave dipole (L=0.5λ0, a=1e-4·λ0): `Zin = 73.08 + j42.52 Ω` (±0.5 Ω each).
+- Half-wave `Rr = 30·Cin(2π) = 73.13 Ω` (±0.1 Ω).
+- Resonant dipole (f=300 MHz, a=1mm): `L_res/λ0 = 0.4775` (±0.005), `R = 63.98 Ω` (±1 Ω), `X≈0`.
+- Quarter-wave monopole (image, a=1mm): `Z = 31.99 + j0 Ω` (±0.5 Ω) = ½ the dipole R.
 
-## 10. Constants/assumptions to verify numerically during implementation
+**Rect patch** (εr=4.4, h=1.6mm, f=2.4GHz) (tol):
+- `W=38.010 mm` (0.05), `εeff0=4.0431` (0.01), `εeff(f)=4.0498` (0.01) **[KJ with fn=f·h_cm=0.384]**,
+  `ΔL=0.737 mm` (0.01), `L=29.56 mm` (0.2, acceptance window 28–30 mm).
+- `I1=1.14798`, `I12=0.70194` (1e-3); `G1=9.69285e-4 S`, `G12=5.92681e-4 S` (1e-6);
+  `Rin0=320.11 Ω` (2).
 
-1. **CP perturbation factor** — spec uses `ΔS/S = 1/(2Q)` (Garg/most sources). One research pass
-   wrote `1/Q`. Implement `1/(2Q)` and confirm self-consistency with `f1,2=f0(1∓1/(2Q))` and
-   `AR BW≈0.348/Q`; adjust only if the verification math disagrees, and note the chosen convention.
-2. **Annular fringing** uses first-order `d=h/√εr`. Validate the ρ=2 root and resulting radii are
-   physical; if off, fall back to a documented effective-radius fit.
+**Circular disk** (εr=4.4, h=1.6mm, f=2.4GHz, Zin=50) (tol):
+- `F=17.4555 mm` (0.05), `a=16.945 mm` (0.05), `ae=17.467 mm` (0.05), `fr_check=2.3984 GHz` (0.005).
+- radiation integral `I=0.24494` (1e-3); `Grad=1.5757e-3 S` **[/120 form]** (1e-5);
+  `Gc=1.046e-4 S`, `Gd=2.4813e-3 S` (1e-5); `Redge=240.29 Ω` (2); probe `ρ0=5.233 mm` (0.05).
+
+**Annular ring** (εr=4.4, h=1.6mm, f=2.4GHz, ρ=2) (tol):
+- first TM11 root `x0=0.677336` (1e-4); `a=6.458 mm`, `b=12.916 mm` (0.01), `b/a=2.000`.
+
+**CP circular** (Q=50, a≈17mm) (tol):
+- `ΔS/S=1/(2Q)=0.01`; split `(f2−f1)/f0=1/Q=0.02` (1e-4); split-mode phase `−90°` (0.5°),
+  amplitude ratio `1.000`; AR-3dB BW coeff `0.347` (BW≈0.348/Q); truncation `Δb=0.699 mm`
+  **[16√2 form]** (0.01); slot `Ls=9.529 mm`, `Ws=0.953 mm` (0.01).
+
+**UWB disc monopole** (f_L=3.1GHz, g=0.3mm) (tol):
+- `r=7.642 mm` (0.01), `req=r/2=3.821 mm` (0.01), `Wg≥30.57 mm`, `Lg≥22.93 mm`;
+  back-check `fL=7.2/(3r+g)=3.100 GHz` (0.001).
+
+**Robustness:** every type — `synthesize()` returns finite metrics + non-empty geometry; blank/invalid
+inputs degrade gracefully (no NaN/Infinity reaching VBA). Plus `node --check src/main.js src/physics.js`
+and a DOM-stubbed smoke test rendering all 7 types.
+
+## 10. Verification status (resolved by the 2026-06-29 verification workflow)
+
+All three flagged items are now **resolved and folded into §6** above:
+
+1. **CP perturbation factor — RESOLVED: `ΔS/S = 1/(2Q)` confirmed** (Garg / Sharma-Gupta), three
+   ways: split `(f2−f1)/f0=1/Q`, exact ±90°/equal-amplitude quadrature at f0, and the slot area
+   `Ls·Ws=S/(2Q)`. The `1/Q` figure is wrong. *Additional* fix found: the two-segment truncation
+   depth must use `16√2` (not `8√2`) to avoid double-counting — applied in §6.6.
+2. **Rect patch KJ dispersion — FIXED:** `fn = f_GHz·h_cm` (not `h_mm`); 10× error corrected in §6.1.
+3. **Circular disk Grad — FIXED:** denominator `/120` with the `J1'` integrand (was 4× too small);
+   corrected in §6.4, plus explicit `Gc/Gd` cavity-loss formulas added.
+4. **Annular fringing** uses first-order `d=h/√εr`; the ρ=2 root (`x0=0.6773`) and radii verified
+   physical, so retained.
+
+Everything else verified correct as written. Per the workflow's verdict: *"the spec's physics is
+fundamentally sound and ready to implement"* with the above applied.
 3. **Disc-monopole Liang constant** `7.2` (cm·GHz) — sanity-check r at f_L=3.1 GHz ≈ 7–8 mm.
 
 ## 11. Phase 2 interface (forward-looking, not built this phase)
