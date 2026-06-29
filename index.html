@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>EM-1D Antenna CST VBA Generator</title>
+    <link rel="stylesheet" href="/src/styles.css" />
+    <script type="importmap">
+      { "imports": { "three": "/src/vendor/three.module.js" } }
+    </script>
+  </head>
+  <body>
+    <main class="shell">
+      <section class="hero">
+        <div>
+          <p class="eyebrow">Vercel-ready CST workflow</p>
+          <h1>Generate and tune CST antenna macros from the browser.</h1>
+          <p>Pick an antenna topology, tune practical dimensions, preview first-order estimates, and export a CST VBA macro.</p>
+        </div>
+        <button id="download">Download .vba</button>
+      </section>
+
+      <section class="grid">
+        <form class="card controls" id="controls">
+          <h2>Design inputs</h2>
+          <label>Antenna type<select id="type">
+            <option value="rect">Rectangular Patch</option>
+            <option value="dipole">Dipole</option>
+            <option value="monopole">Monopole</option>
+            <option value="disk">Circular Disk Patch</option>
+            <option value="annular">Annular Ring Patch</option>
+            <option value="cp">CP Circular Patch</option>
+            <option value="uwb">UWB Disc Monopole</option>
+          </select></label>
+          <label data-types="rect dipole monopole disk annular cp">Target frequency (GHz)<input id="frequencyGHz" type="number" step="0.01" min="0.1" value="2.45" /></label>
+          <label data-types="uwb">Lower cutoff f_L (GHz)<input id="lowerCutoffGHz" type="number" step="0.01" min="0.1" value="3.1" /></label>
+          <label data-types="rect disk annular cp">Substrate εr<input id="substrateEr" type="number" step="0.1" min="1" value="4.4" /></label>
+          <label data-types="rect disk annular cp">Substrate height (mm)<input id="substrateHeightMm" type="number" step="0.1" min="0.1" value="1.6" /></label>
+          <label data-types="rect disk annular cp">Loss tangent (tanδ)<input id="lossTangent" type="number" step="0.001" min="0" value="0.02" /></label>
+          <label data-types="rect disk">Conductor thickness (mm)<input id="conductorThicknessMm" type="number" step="0.001" min="0.001" value="0.035" /></label>
+          <label data-types="rect disk annular cp">Port impedance (Ω)<input id="portImpedance" type="number" step="1" min="1" value="50" /></label>
+          <label data-types="annular">Ring ratio ρ (b/a)<input id="ringRatio" type="number" step="0.1" min="1.1" value="2" /></label>
+          <label data-types="cp">Polarization<select id="polarization"><option value="RHCP">RHCP</option><option value="LHCP">LHCP</option></select></label>
+          <label data-types="dipole monopole">Wire radius (mm)<input id="wireRadiusMm" type="number" step="0.05" min="0.05" value="0.5" /></label>
+          <label data-types="monopole uwb">Ground length (mm)<input id="groundLengthMm" type="number" step="1" min="1" value="100" /></label>
+          <label data-types="monopole uwb">Ground width (mm)<input id="groundWidthMm" type="number" step="1" min="1" value="100" /></label>
+          <label data-types="dipole monopole uwb">Feed gap (mm)<input id="feedGapMm" type="number" step="0.1" min="0.1" value="1" /></label>
+        </form>
+
+        <section class="card viewer-card">
+          <div class="codeHead"><h2>3D view</h2><span class="viewerHint">drag rotate · scroll zoom · right-drag pan</span></div>
+          <div id="viewer" class="viewer"></div>
+        </section>
+
+        <section class="card summary">
+          <h2>Estimated geometry</h2>
+          <div class="metrics">
+            <span data-types="rect dipole monopole disk annular cp uwb">Main size</span><strong id="sizeMain" data-types="rect dipole monopole disk annular cp uwb"></strong>
+            <span data-types="rect">Effective εr</span><strong id="eeff" data-types="rect"></strong>
+            <span data-types="rect cp">Inset / truncation</span><strong id="inset" data-types="rect cp"></strong>
+            <span data-types="rect disk">Edge resistance</span><strong id="edgeR" data-types="rect disk"></strong>
+            <span data-types="rect disk annular">Q factor</span><strong id="q" data-types="rect disk annular"></strong>
+            <span data-types="rect disk annular">Bandwidth</span><strong id="bw" data-types="rect disk annular"></strong>
+            <span data-types="rect disk uwb">Ground</span><strong id="ground" data-types="rect disk uwb"></strong>
+            <span data-types="dipole monopole">Input impedance</span><strong id="impedance" data-types="dipole monopole"></strong>
+            <span data-types="dipole">Resonant length ratio</span><strong id="resonant" data-types="dipole"></strong>
+            <span data-types="disk annular cp">Probe / feed position</span><strong id="probe" data-types="disk annular cp"></strong>
+            <span data-types="cp">Split freqs f1 / f2</span><strong id="splitFreqs" data-types="cp"></strong>
+            <span data-types="cp">AR bandwidth</span><strong id="arBw" data-types="cp"></strong>
+            <span data-types="disk">Matchable?</span><strong id="matchable" data-types="disk"></strong>
+          </div>
+          <div class="warnings" id="warnings"></div>
+          <p class="note">These are starting dimensions for CST sweeps, not final certified designs. Tune in CST with your chosen solver, ports, mesh, substrate losses, and manufacturing constraints.</p>
+        </section>
+
+        <section class="card code">
+          <div class="codeHead"><h2>CST VBA output</h2><button type="button" id="copy">Copy</button></div>
+          <textarea id="vba" readonly spellcheck="false"></textarea>
+        </section>
+      </section>
+    </main>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
