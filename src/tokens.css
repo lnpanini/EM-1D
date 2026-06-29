@@ -1,0 +1,94 @@
+/* ============================================================
+   EM-1D Design System tokens — imported from the claude.ai/design
+   "EM-1D Design System" project (4ebb1848-…). Consolidated from
+   tokens/{fonts,colors,typography,spacing,elevation,base}.css.
+   "Console" palette: cool slate neutrals + flat electric cobalt.
+   ============================================================ */
+
+/* ---- Webfonts (Archivo + JetBrains Mono). Swap to self-hosted woff2 to run fully offline. ---- */
+@import url('https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
+
+:root {
+  /* ---- Neutrals: cool slate → light gray ---- */
+  --ink-900: #0F1216; --ink-800: #181C22; --ink-700: #262C34; --ink-600: #3D454F;
+  --ink-500: #5A636E; --ink-400: #828B96; --ink-300: #AAB2BC;
+  --paper-300: #D2D7DD; --paper-200: #E1E5EA; --paper-150: #ECEFF2;
+  --paper-100: #F2F4F6; --paper-50: #F8F9FB; --white: #FFFFFF;
+
+  /* ---- Brand: electric cobalt (flat, no gradients) ---- */
+  --brand-700: #143A8C; --brand-600: #1A49B0; --brand-500: #2159D6; --brand-400: #4C7AE6;
+  --brand-300: #89A6F0; --brand-150: #DBE5FB; --brand-100: #EBF1FC;
+
+  /* ---- Ink panel (dark instrument surfaces, e.g. 3D viewer) ---- */
+  --panel-900: #0E1116; --panel-800: #161B22; --panel-700: #20262F; --panel-600: #2C333D;
+  --panel-line: #333B45; --panel-text: #E3E8EE; --panel-text-dim: #8A95A1;
+
+  /* ---- Physical data colors (the 3D material map — SEMANTIC, do not recolor) ---- */
+  --mat-conductor: #BFC7D0; --mat-conductor-ink: #586572;
+  --mat-substrate: #2E7D5B; --mat-substrate-ink: #1F6347;
+  --mat-feed: #E0524D; --mat-feed-ink: #B83833;
+
+  /* ---- Semantic status ---- */
+  --success: #2E7D5B; --success-tint: #E2F0E9;
+  --warning: #B97514; --warning-tint: #FBEFD7; --warning-border: #E6C589;
+  --danger: #C0413B; --danger-tint: #F8E4E2;
+  --info: #2F6E8F; --info-tint: #E1EEF3;
+
+  /* ---- Semantic aliases (author against these) ---- */
+  --bg-page: var(--paper-100); --bg-raised: var(--paper-50);
+  --surface-card: var(--white); --surface-sunken: var(--paper-150); --surface-tint: var(--brand-100);
+  --text-strong: var(--ink-900); --text-heading: var(--ink-700); --text-body: var(--ink-800);
+  --text-muted: var(--ink-500); --text-faint: var(--ink-400);
+  --text-on-accent: #F4F8FF; --text-on-panel: var(--panel-text);
+  --border-default: var(--paper-200); --border-strong: var(--paper-300); --border-focus: var(--brand-500);
+  --field-bg: var(--white); --field-border: var(--paper-300);
+  --accent: var(--brand-500); --accent-hover: var(--brand-600); --accent-press: var(--brand-700);
+  --accent-tint: var(--brand-100); --accent-text: var(--brand-700);
+
+  /* ---- Typography ---- */
+  --font-display: 'Archivo', ui-sans-serif, system-ui, sans-serif;
+  --font-sans: 'Archivo', ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, 'SFMono-Regular', Consolas, monospace;
+  --fw-regular: 400; --fw-medium: 500; --fw-semibold: 600; --fw-bold: 700;
+  --text-2xs: 11px; --text-xs: 12px; --text-sm: 13px; --text-base: 15px; --text-md: 17px;
+  --text-lg: 20px; --text-xl: 25px; --text-2xl: 32px; --text-3xl: 42px;
+  --leading-tight: 1.02; --leading-snug: 1.2; --leading-normal: 1.5; --leading-relaxed: 1.65;
+  --tracking-tight: -0.02em; --tracking-wide: 0.04em; --tracking-eyebrow: 0.16em;
+
+  /* ---- Spacing & control sizing (4px grid) ---- */
+  --control-h-sm: 30px; --control-h-md: 38px; --control-h-lg: 46px; --control-pad-x: 12px;
+
+  /* ---- Radii ---- */
+  --radius-xs: 3px; --radius-sm: 5px; --radius-md: 8px; --radius-lg: 12px; --radius-xl: 16px; --radius-pill: 999px;
+
+  /* ---- Shadows (cool neutral, layered) ---- */
+  --shadow-xs: 0 1px 1px rgba(15,20,28,.05);
+  --shadow-sm: 0 1px 2px rgba(15,20,28,.07), 0 1px 1px rgba(15,20,28,.04);
+  --shadow-md: 0 2px 4px rgba(15,20,28,.06), 0 6px 16px rgba(15,20,28,.08);
+  --shadow-lg: 0 4px 8px rgba(15,20,28,.07), 0 16px 40px rgba(15,20,28,.12);
+  --shadow-inset: inset 0 1px 2px rgba(15,20,28,.07);
+  --ring-focus: 0 0 0 3px rgba(33,89,214,.22);
+  --ring-danger: 0 0 0 3px rgba(192,65,59,.20);
+
+  /* ---- Motion ---- */
+  --ease-out: cubic-bezier(0.22,0.61,0.36,1);
+  --dur-fast: 110ms; --dur-base: 180ms; --dur-slow: 280ms;
+  --transition-control: background-color var(--dur-fast) var(--ease-out),
+    border-color var(--dur-fast) var(--ease-out),
+    box-shadow var(--dur-fast) var(--ease-out),
+    color var(--dur-fast) var(--ease-out);
+}
+
+/* ---- Base layer ---- */
+*, *::before, *::after { box-sizing: border-box; }
+body {
+  margin: 0; font-family: var(--font-sans); font-size: var(--text-base);
+  line-height: var(--leading-normal); color: var(--text-body); background: var(--bg-page);
+  -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility;
+}
+button, input, select, textarea { font: inherit; color: inherit; }
+h1, h2, h3, h4 { font-family: var(--font-sans); font-weight: var(--fw-semibold); color: var(--text-heading); line-height: var(--leading-snug); margin: 0; }
+::selection { background: var(--brand-150); color: var(--brand-700); }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .001ms !important; transition-duration: .001ms !important; }
+}
