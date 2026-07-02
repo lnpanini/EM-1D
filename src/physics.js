@@ -449,14 +449,15 @@ export function annularRing(d) {
   const c = C_MM_PER_S; // mm/s
   const dFringe = h_mm / Math.sqrt(er);
 
+  // --- Outer ring: TM11 cavity-model resonance (validated single-ring synthesis) ---
   let aeff = 0, rhoEff = rho_in;
   for (let it = 0; it < 5; it++) {
     const xr = annularRoot(rhoEff);
     aeff = (xr * c) / (2 * Math.PI * fHz * Math.sqrt(er));
     rhoEff = rho_in + (rho_in + 1) * dFringe / aeff;
   }
-  const a = aeff + dFringe;
-  const b = rho_in * a;
+  const a = aeff + dFringe;   // outer ring inner radius
+  const b = rho_in * a;       // outer ring outer radius
   const x0 = annularRoot(rho_in);
 
   // Q / bandwidth (cavity-loss estimate)
@@ -467,18 +468,76 @@ export function annularRing(d) {
   const S = 2;
   const bandwidthPct = ((S - 1) / (Qt * Math.sqrt(S))) * 100;
 
-  const rf = (a + b) / 2;
-  const metrics = { a, b, x0, aeff, rf, Qt, bandwidthPct };
+  // --- N concentric rings + connector bridges + edge microstrip feed ---
+  // The outer ring [a,b] is the primary TM11 resonator (validated cavity model).
+  // Each additional concentric ring is separated from the one outside it by a
+  // radial `gap` and tied to it by a thin connector, adding further resonances —
+  // a multi-ring wideband/multiband patch. Ring count is user-selectable; a ring
+  // that would collapse to a non-positive radius is dropped (with a warning).
+  // Dimensions are a PRELIMINARY design; the CST export is parametric for sweeps.
+  const rOutO = b, rOutI = a;                 // outer ring outer / inner radii
+  const ringWOuter = rOutO - rOutI;           // = b − a
+  const gap = num(d.ringGapMm) || 1.0;        // radial gap between adjacent rings
+  const feedW = num(d.feedWidthMm) || 1.0;    // microstrip / connector width
+  const innerW = num(d.innerRingWidthMm) || 2.5;
+  const reqRings = Math.max(1, Math.min(6, Math.round(num(d.ringCount) || 2)));
 
-  const span = 2 * b + 6 * h_mm;
+  // Build the ring list from outer inward; stop if a ring would collapse.
+  const rings = [{ ro: rOutO, ri: rOutI }];
+  for (let k = 1; k < reqRings; k++) {
+    const ro = rings[k - 1].ri - gap;
+    const ri = ro - innerW;
+    if (ro <= 0.5 || ri <= 0.25) break;
+    rings.push({ ro, ri });
+  }
+  const nRings = rings.length;
+  if (nRings < reqRings) {
+    warnings.push(`only ${nRings} of ${reqRings} rings fit — reduce gap / inner-ring width / ring count`);
+  }
+
+  const metalThk = t_mm;                       // top-metal thickness (met_t)
+  const gndThk = 0.035;                         // ground copper thickness (gnd_t)
+  const ov = 0.5;                               // overlap so unions merge cleanly
+
+  // Edge microstrip feed on +x, from the outer ring rim out to the board edge.
+  const feedExtend = Math.max(4, 0.4 * rOutO);  // feed-line length beyond the ring
+  const edgeX = rOutO + feedExtend;             // +x board edge == port location
+  const feedX1 = rOutO - ov;                    // feed starts just inside the outer rim
+  const feedLen = edgeX - feedX1;
+  const feedCx = (feedX1 + edgeX) / 2;
+
+  // Rectangular board sized to enclose the outer ring + feed line, symmetric in x
+  // so the edge port sits exactly on the board rim.
+  const marginY = Math.max(3, 0.3 * rOutO);
+  const boardHalfX = edgeX;
+  const boardHalfY = rOutO + marginY;
+
+  const conW = feedW;
+  const rf = (a + b) / 2;                        // (kept for back-compat / reference)
+  const metrics = {
+    a, b, x0, aeff, rf, Qt, bandwidthPct,
+    ringCount: nRings, ringWidthOuter: ringWOuter, gap, innerRingWidth: innerW,
+    innermostRadius: rings[nRings - 1].ri, feedWidth: feedW, feedLineLength: feedLen,
+    connectorWidth: conW, boardX: 2 * boardHalfX, boardY: 2 * boardHalfY, metalThk, groundThk: gndThk,
+  };
+
   const geometry = [
-    { shape: 'box', material: 'substrate', center: [0, 0, -h_mm / 2], size: { x: span, y: span, z: h_mm } },
-    { shape: 'box', material: 'pec', center: [0, 0, -h_mm - t_mm / 2], size: { x: span, y: span, z: t_mm } },
-    { shape: 'ring', material: 'pec', center: [0, 0, t_mm / 2], rInner: a, rOuter: b, height: t_mm, axis: 'z' },
-    { shape: 'feed', material: 'feed', p1: [rf, 0, 0], p2: [rf, 0, -h_mm], impedance: Zin },
+    { shape: 'box', material: 'substrate', center: [0, 0, -h_mm / 2], size: { x: 2 * boardHalfX, y: 2 * boardHalfY, z: h_mm } },
+    { shape: 'box', material: 'pec', center: [0, 0, -h_mm - gndThk / 2], size: { x: 2 * boardHalfX, y: 2 * boardHalfY, z: gndThk } },
   ];
+  for (const r of rings) {
+    geometry.push({ shape: 'ring', material: 'pec', center: [0, 0, metalThk / 2], rInner: r.ri, rOuter: r.ro, height: metalThk, axis: 'z' });
+  }
+  // Connector bridges on −x, one per adjacent pair, spanning each gap.
+  for (let k = 0; k < nRings - 1; k++) {
+    const x1 = -(rings[k].ri + ov), x2 = -(rings[k + 1].ro - ov);
+    geometry.push({ shape: 'box', material: 'pec', center: [(x1 + x2) / 2, 0, metalThk / 2], size: { x: x2 - x1, y: 2 * conW, z: metalThk } });
+  }
+  geometry.push({ shape: 'box', material: 'pec', center: [feedCx, 0, metalThk / 2], size: { x: feedLen, y: 2 * feedW, z: metalThk } });
+  geometry.push({ shape: 'feed', material: 'feed', p1: [edgeX, 0, metalThk], p2: [edgeX, 0, -h_mm - gndThk], impedance: Zin });
 
-  return { inputs: { ...d }, metrics, warnings, geometry };
+  // `template` selects the parametric, sweep-ready CST export in buildVba().
+  return { inputs: { ...d }, metrics, warnings, geometry, template: 'concentric-ring' };
 }
 
 // ---------------------------------------------------------------------------
@@ -723,7 +782,177 @@ function vbaDiscretePort(p, n) {
   ].join('\n');
 }
 
+// Wrap raw CST VBA source lines into a single AddToHistory(...) block. Inner
+// double-quotes are escaped (VBA doubles them); lines are joined with vbLf.
+function addToHistory(label, vbaLines) {
+  const q = vbaLines.map((l) => '  "' + String(l).replace(/"/g, '""') + '"').join(' & vbLf & _\n');
+  return `AddToHistory("${label}", _\n${q})`;
+}
+
+// Parametric, sweep-ready CST macro for the concentric annular-ring antenna.
+// Mirrors the hand-written CST style (StoreParameter + AddToHistory history
+// blocks, lossy copper + real substrate, monitors, TD solver) but seeds every
+// parameter from EM-1D's synthesized preliminary design, and lists suggested
+// sweep ranges so the Parameter Sweep can be driven straight away.
+function buildVbaConcentricRing(result, design) {
+  const m = (result && result.metrics) || {};
+  const warnings = (result && result.warnings) || [];
+  const f0 = num(design && design.frequencyGHz) || num(m.f0);
+  const Zin = num(design && design.portImpedance) || 50;
+  const fmin = 0.6 * f0, fmax = 1.6 * f0;
+  const fLabel = vn(f0);
+  const w = num(m.ringWidthOuter), g = num(m.gap), iw = num(m.innerRingWidth);
+  const N = Math.max(1, Math.round(num(m.ringCount) || 1));   // number of concentric rings
+
+  const header = [
+    "' ============================================================",
+    "' EM-1D — Concentric annular-ring microstrip antenna (PRELIMINARY design)",
+    `' Target f0 = ${vn(f0)} GHz | substrate eps_r=${vn(design.substrateEr)}, h=${vn(design.substrateHeightMm)} mm, tanD=${vn(design.lossTangent)}`,
+    `' Rings: ${N}  |  outer r_out_o=${vn(m.b)}  ring_w=${vn(m.ringWidthOuter)}  (r_out_i=${vn(m.a)})`,
+    `' Inner rings: gap=${vn(m.gap)}  in_ring_w=${vn(m.innerRingWidth)}  innermost radius=${vn(m.innermostRadius)}`,
+    `' feed_w=${vn(m.feedWidth)}  board=${vn(m.boardX)} x ${vn(m.boardY)} mm  Q~${vn(m.Qt)}`,
+    "'",
+    "' --- Suggested parameter sweeps (Simulation > Parameter Sweep) ---",
+    `'   r_out_o  : ${vn(0.9 * m.b)} .. ${vn(1.1 * m.b)}     (outer-band resonance)`,
+    `'   in_ring_w: ${vn(0.5 * iw)} .. ${vn(1.5 * iw)}     (inner-band resonance)`,
+    `'   gap      : 0.3 .. ${vn(2 * g)}     (inter-ring coupling -> bandwidth)`,
+    `'   ring_w   : ${vn(0.6 * w)} .. ${vn(1.4 * w)}     (outer-ring bandwidth)`,
+    `'   cx       : -1 .. 1     (feed/coupling asymmetry, input match)`,
+  ];
+  for (const wn of warnings) header.push(`' WARNING: ${String(wn).replace(/[\r\n]+/g, ' ')}`);
+  header.push("' ============================================================");
+
+  const L = [];
+  L.push('Option Explicit');
+  L.push('Sub Main');
+  L.push('On Error Resume Next');
+  L.push('Port.Delete "1"');
+  L.push(`Monitor.Delete "farfield (f=${fLabel})"`);
+  L.push(`Monitor.Delete "e-field (f=${fLabel})"`);
+  L.push('Component.Delete "component1"');
+  L.push('Material.Delete "Copper (annealed)"');
+  L.push('Material.Delete "Substrate Material"');
+  L.push('On Error GoTo 0');
+  L.push('');
+
+  // Units
+  L.push('With Units');
+  L.push('  .Geometry "mm" : .Frequency "GHz" : .Time "ns"');
+  L.push('End With');
+  L.push('');
+
+  // Parameters (drivers as doubles, geometry relations as expressions)
+  L.push("' ---- Parameters (defaults = EM-1D preliminary design) ----");
+  const P = (n, v) => L.push(`StoreDoubleParameter "${n}", ${vn(v)}`);
+  const PS = (n, e) => L.push(`StoreParameter       "${n}", "${e}"`);
+  P('sub_x', num(m.boardX) / 2); P('sub_y', num(m.boardY) / 2); P('sub_h', design.substrateHeightMm);
+  P('eps_r', design.substrateEr); P('tand', design.lossTangent);
+  P('gnd_t', m.groundThk); P('met_t', m.metalThk); P('z0', Zin);
+  P('cx', 0); P('cy', 0);
+  P('r_out_o', m.b); P('ring_w', m.ringWidthOuter); PS('r_out_i', 'r_out_o - ring_w');
+  P('gap', m.gap); P('in_ring_w', m.innerRingWidth);
+  // Inner-ring radii derived by chaining inward: ring k outer = (ring k-1 inner) − gap.
+  for (let k = 1; k < N; k++) {
+    const prevInner = k === 1 ? 'r_out_i' : `r${k - 1}_i`;
+    PS(`r${k}_o`, `${prevInner} - gap`);
+    PS(`r${k}_i`, `r${k}_o - in_ring_w`);
+  }
+  PS('feed_x1', 'cx + r_out_o - 0.5'); P('feed_w', m.feedWidth); P('con_w', m.connectorWidth);
+  // Connector bridge spans (inner edge of ring k) → (outer edge of ring k+1).
+  for (let k = 0; k < N - 1; k++) {
+    const innerEdge = k === 0 ? 'r_out_i' : `r${k}_i`;
+    PS(`con${k}_x1`, `cx - ${innerEdge} - 0.5`);
+    PS(`con${k}_x2`, `cx - r${k + 1}_o + 0.5`);
+  }
+  P('fmin', fmin); P('fmax', fmax); P('f0', f0);
+  L.push('');
+
+  // Materials
+  L.push(addToHistory('define material Copper (annealed)', [
+    'With Material', '.Reset', '.Name "Copper (annealed)"', '.FrqType "all"', '.Type "Lossy metal"',
+    '.SetMaterialUnit "GHz","mm"', '.Mu "1.0"', '.Kappa "5.8e+007"', '.Rho "8930.0"',
+    '.Colour "1","1","0"', '.Create', 'End With']));
+  L.push(addToHistory('define material Substrate Material', [
+    'With Material', '.Reset', '.Name "Substrate Material"', '.FrqType "all"', '.Type "Normal"',
+    '.SetMaterialUnit "GHz","mm"', '.Epsilon "eps_r"', '.Mu "1.0"', '.Kappa "0.0"', '.TanD "tand"',
+    '.TanDFreq "10.0"', '.TanDGiven "True"', '.TanDModel "ConstTanD"', '.Colour "0.94","0.82","0.76"',
+    '.Create', 'End With']));
+  L.push(addToHistory('new component component1', ['Component.New "component1"']));
+  L.push('');
+
+  // Substrate + ground (substrate top at z=sub_h; metal sits sub_h .. sub_h+met_t)
+  L.push(addToHistory('define brick Substrate', [
+    'With Brick', '.Reset', '.Name "Substrate"', '.Component "component1"', '.Material "Substrate Material"',
+    '.Xrange "-sub_x", "sub_x"', '.Yrange "-sub_y", "sub_y"', '.Zrange "0", "sub_h"', '.Create', 'End With']));
+  L.push(addToHistory('define brick Ground', [
+    'With Brick', '.Reset', '.Name "Ground"', '.Component "component1"', '.Material "Copper (annealed)"',
+    '.Xrange "-sub_x", "sub_x"', '.Yrange "-sub_y", "sub_y"', '.Zrange "-gnd_t", "0"', '.Create', 'End With']));
+
+  // N concentric rings (outer + inner rings 1..N-1)
+  const ringCyl = (label, name, roP, riP) => addToHistory(label, [
+    'With Cylinder', '.Reset', `.Name "${name}"`, '.Component "component1"', '.Material "Copper (annealed)"',
+    `.OuterRadius "${roP}"`, `.InnerRadius "${riP}"`, '.Axis "z"', '.Zrange "sub_h", "sub_h + met_t"',
+    '.Xcenter "cx"', '.Ycenter "cy"', '.Segments "0"', '.Create', 'End With']);
+  L.push(ringCyl('define cylinder Outer Ring', 'Outer Ring', 'r_out_o', 'r_out_i'));
+  for (let k = 1; k < N; k++) L.push(ringCyl(`define cylinder Ring ${k}`, `Ring ${k}`, `r${k}_o`, `r${k}_i`));
+
+  // Connector bridges (−x), one per adjacent ring pair
+  for (let k = 0; k < N - 1; k++) {
+    L.push(addToHistory(`define brick Connect ${k}`, [
+      'With Brick', '.Reset', `.Name "Connect ${k}"`, '.Component "component1"', '.Material "Copper (annealed)"',
+      `.Xrange "con${k}_x1", "con${k}_x2"`, '.Yrange "-con_w", "con_w"', '.Zrange "sub_h", "sub_h + met_t"', '.Create', 'End With']));
+  }
+
+  // Edge microstrip feed (+x)
+  L.push(addToHistory('define brick Feed', [
+    'With Brick', '.Reset', '.Name "Feed"', '.Component "component1"', '.Material "Copper (annealed)"',
+    '.Xrange "feed_x1", "sub_x"', '.Yrange "-feed_w", "feed_w"', '.Zrange "sub_h", "sub_h + met_t"', '.Create', 'End With']));
+
+  // Union all metal into the "Outer Ring" solid
+  for (let k = 1; k < N; k++) L.push(addToHistory(`boolean add Ring ${k}`, [`Solid.Add "component1:Outer Ring", "component1:Ring ${k}"`]));
+  for (let k = 0; k < N - 1; k++) L.push(addToHistory(`boolean add Connect ${k}`, [`Solid.Add "component1:Outer Ring", "component1:Connect ${k}"`]));
+  L.push(addToHistory('boolean add Feed', ['Solid.Add "component1:Outer Ring", "component1:Feed"']));
+  L.push('');
+
+  // Frequency, monitors
+  L.push(addToHistory('define frequency range', ['Solver.FrequencyRange "fmin", "fmax"']));
+  L.push(addToHistory(`define monitor farfield (f=${fLabel})`, [
+    'With Monitor', '.Reset', `.Name "farfield (f=${fLabel})"`, '.Domain "Frequency"', '.FieldType "Farfield"',
+    '.MonitorValue "f0"', '.ExportFarfieldSource "False"', '.Create', 'End With']));
+  L.push(addToHistory(`define monitor e-field (f=${fLabel})`, [
+    'With Monitor', '.Reset', `.Name "e-field (f=${fLabel})"`, '.Dimension "Volume"', '.Domain "Frequency"',
+    '.FieldType "Efield"', '.MonitorValue "f0"', '.Create', 'End With']));
+
+  // Discrete port at the +x board edge (coordinate-based, no edge picking)
+  L.push(addToHistory('define discrete port 1', [
+    'WCS.ActivateWCS "global"', 'With DiscretePort', '.Reset', '.PortNumber "1"', '.Type "SParameter"',
+    '.Impedance "z0"', '.Voltage "1.0"', '.Current "1.0"',
+    '.SetP1 "False", "sub_x", "0", "sub_h + met_t"', '.SetP2 "False", "sub_x", "0", "-gnd_t"',
+    '.InvertDirection "False"', '.LocalCoordinates "False"', '.Monitor "True"', '.Radius "0.0"', '.Wire ""',
+    '.Create', 'End With']));
+  L.push('');
+
+  // Boundaries, mesh, time-domain solver
+  L.push('With Boundary');
+  L.push('  .Xmin "open" : .Xmax "open" : .Ymin "open" : .Ymax "open" : .Zmin "open" : .Zmax "open"');
+  L.push('End With');
+  L.push(addToHistory('define mesh settings', [
+    'With MeshSettings', '.SetMeshType "Hex"', '.Set "StepsPerWaveNear", "10"', '.Set "StepsPerWaveFar", "10"',
+    '.Set "StepsPerBoxNear", "10"', 'End With']));
+  L.push(addToHistory('set solver type and mesh creator', [
+    'ChangeSolverType "HF Time Domain"', 'Mesh.SetCreator "High Frequency"']));
+  L.push(addToHistory('define time domain solver', [
+    'With Solver', '.Method "Hexahedral"', '.CalculationType "TD-S"', '.StimulationPort "All"',
+    '.StimulationMode "All"', '.SteadyStateLimit "-40"', '.MeshAdaption "False"', '.AutoNormImpedance "True"',
+    '.NormingImpedance "50"', 'End With']));
+  L.push('');
+  L.push('End Sub');
+
+  return header.join('\n') + '\n\n' + L.join('\n') + '\n';
+}
+
 export function buildVba(result, design) {
+  if (result && result.template === 'concentric-ring') return buildVbaConcentricRing(result, design || {});
   const metrics = (result && result.metrics) || {};
   const warnings = (result && result.warnings) || [];
   const geometry = (result && result.geometry) || [];

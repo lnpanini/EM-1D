@@ -9,12 +9,27 @@ const glyphHTML = (type) => `<span class="${GLYPH[type]}"></span>`;
 
 const GLYPH = { rect: 'g-rect', dipole: 'g-line', monopole: 'g-vline', disk: 'g-disk', annular: 'g-ring', cp: 'g-cp', uwb: 'g-uwb' };
 
+// ---- substrate presets -----------------------------------------------------
+// Each preset sets the laminate's nominal εr / tanδ and the standard panel
+// thicknesses offered for it. 'Custom' leaves εr/tanδ editable and offers a
+// broad set of common thicknesses.
+const SUBSTRATE_PRESETS = {
+  'FR-4':           { er: 4.4,  tanD: 0.02,   thicknesses: [0.4, 0.6, 0.8, 1.0, 1.6, 2.4, 3.2], def: 1.6 },
+  'Rogers RO4350B': { er: 3.66, tanD: 0.0037, thicknesses: [0.168, 0.254, 0.338, 0.508, 0.762, 1.524], def: 0.762 },
+  'Rogers RO4003C': { er: 3.55, tanD: 0.0027, thicknesses: [0.203, 0.305, 0.406, 0.508, 0.813, 1.524], def: 0.813 },
+  'RT/Duroid 5880': { er: 2.2,  tanD: 0.0009, thicknesses: [0.127, 0.254, 0.381, 0.508, 0.787, 1.575], def: 0.787 },
+  'Custom':         { er: null, tanD: null,   thicknesses: [0.13, 0.25, 0.51, 0.79, 1.0, 1.52, 1.6, 2.0, 3.2], def: 1.6 },
+};
+
+const CHEV = '<span class="chev"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg></span>';
+
 // ---- field descriptors -----------------------------------------------------
 const FIELDS = {
   frequencyGHz:      { label: 'Target frequency', sym: 'f₀', unit: 'GHz', def: 2.45, group: 'Operating point' },
   lowerCutoffGHz:    { label: 'Lower cutoff', sym: 'f_L', unit: 'GHz', def: 3.1, group: 'Operating point' },
+  substratePreset:   { label: 'Substrate preset', group: 'Substrate', select: Object.keys(SUBSTRATE_PRESETS), def: 'FR-4', preset: true },
   substrateEr:       { label: 'Relative permittivity', sym: 'εr', def: 4.4, group: 'Substrate' },
-  substrateHeightMm: { label: 'Substrate height', sym: 'h', unit: 'mm', def: 1.6, group: 'Substrate' },
+  substrateHeightMm: { label: 'Substrate height', sym: 'h', unit: 'mm', def: 1.6, group: 'Substrate', thickness: true },
   lossTangent:       { label: 'Loss tangent', sym: 'tanδ', def: 0.02, group: 'Substrate' },
   conductorThicknessMm: { label: 'Conductor thickness', sym: 't', unit: 'mm', def: 0.035, group: 'Substrate' },
   portImpedance:     { label: 'Port impedance', sym: 'Z₀', unit: 'Ω', def: 50, group: 'Feed' },
@@ -23,15 +38,19 @@ const FIELDS = {
   groundLengthMm:    { label: 'Ground length', unit: 'mm', def: 100, group: 'Geometry' },
   groundWidthMm:     { label: 'Ground width', unit: 'mm', def: 100, group: 'Geometry' },
   ringRatio:         { label: 'Ring ratio b/a', sym: 'ρ', def: 2, group: 'Geometry' },
+  ringCount:         { label: 'Number of rings', group: 'Geometry', select: ['1', '2', '3', '4', '5'], def: '2' },
+  ringGapMm:         { label: 'Inter-ring gap', sym: 'g', unit: 'mm', def: 1, group: 'Geometry' },
+  innerRingWidthMm:  { label: 'Inner ring width', unit: 'mm', def: 2.5, group: 'Geometry' },
+  feedWidthMm:       { label: 'Feed width', unit: 'mm', def: 1, group: 'Feed' },
   polarization:      { label: 'Polarization', group: 'Feed', select: ['RHCP', 'LHCP'] },
 };
 const TYPE_FIELDS = {
-  rect: ['frequencyGHz', 'substrateEr', 'substrateHeightMm', 'lossTangent', 'conductorThicknessMm', 'portImpedance'],
+  rect: ['frequencyGHz', 'substratePreset', 'substrateEr', 'substrateHeightMm', 'lossTangent', 'conductorThicknessMm', 'portImpedance'],
   dipole: ['frequencyGHz', 'wireRadiusMm', 'feedGapMm'],
   monopole: ['frequencyGHz', 'wireRadiusMm', 'groundLengthMm', 'groundWidthMm', 'feedGapMm'],
-  disk: ['frequencyGHz', 'substrateEr', 'substrateHeightMm', 'lossTangent', 'conductorThicknessMm', 'portImpedance'],
-  annular: ['frequencyGHz', 'substrateEr', 'substrateHeightMm', 'lossTangent', 'portImpedance', 'ringRatio'],
-  cp: ['frequencyGHz', 'substrateEr', 'substrateHeightMm', 'lossTangent', 'portImpedance', 'polarization'],
+  disk: ['frequencyGHz', 'substratePreset', 'substrateEr', 'substrateHeightMm', 'lossTangent', 'conductorThicknessMm', 'portImpedance'],
+  annular: ['frequencyGHz', 'substratePreset', 'substrateEr', 'substrateHeightMm', 'lossTangent', 'portImpedance', 'ringRatio', 'ringCount', 'ringGapMm', 'innerRingWidthMm', 'feedWidthMm'],
+  cp: ['frequencyGHz', 'substratePreset', 'substrateEr', 'substrateHeightMm', 'lossTangent', 'portImpedance', 'polarization'],
   uwb: ['lowerCutoffGHz', 'feedGapMm', 'groundLengthMm', 'groundWidthMm'],
 };
 
@@ -60,9 +79,9 @@ const VIEW = {
     results: (m) => [['Edge resistance', fmt(m.Redge, 1) + ' Ω'], ['Probe ρ₀', fmt(m.probeRho0) + ' mm', 1], ['Resonance check', fmt(m.frCheck, 3) + ' GHz'], ['Q factor', fmt(m.Qt, 1)], ['Ground radius', fmt(m.groundRadius) + ' mm'], ['Matchable', m.matchable ? 'yes' : 'no']],
   },
   annular: {
-    readout: (m) => [['a', fmt(m.a)], ['b', fmt(m.b)]],
-    kpis: (m) => [['Inner a · mm', fmt(m.a)], ['Outer b · mm', fmt(m.b)], ['Bandwidth · %', fmt(m.bandwidthPct)]],
-    results: (m) => [['TM₁₁ root ka', fmt(m.x0, 4)], ['Feed radius', fmt(m.rf) + ' mm', 1], ['Q factor', fmt(m.Qt, 1)]],
+    readout: (m) => [['R', fmt(m.b)], ['rings', String(m.ringCount)]],
+    kpis: (m) => [['Outer R · mm', fmt(m.b)], ['Rings', String(m.ringCount)], ['Bandwidth · %', fmt(m.bandwidthPct)]],
+    results: (m) => [['Rings', String(m.ringCount)], ['Outer ring a–b', `${fmt(m.a)} – ${fmt(m.b)} mm`], ['Inter-ring gap', fmt(m.gap) + ' mm', 1], ['Innermost radius', fmt(m.innermostRadius) + ' mm'], ['Feed width', fmt(m.feedWidth) + ' mm'], ['Board', `${fmt(m.boardX)} × ${fmt(m.boardY)} mm`], ['Q factor', fmt(m.Qt, 1)]],
   },
   cp: {
     readout: (m) => [['a', fmt(m.a)]],
@@ -81,7 +100,7 @@ const labelFor = (key) => (TYPES.find((t) => t.key === key) || {}).label || key;
 // ---- state -----------------------------------------------------------------
 const state = {
   type: 'rect',
-  values: Object.fromEntries(Object.entries(FIELDS).map(([k, f]) => [k, f.select ? f.select[0] : f.def])),
+  values: Object.fromEntries(Object.entries(FIELDS).map(([k, f]) => [k, f.select ? (f.def ?? f.select[0]) : f.def])),
   pinned: [],
   lastResult: null,
 };
@@ -125,14 +144,38 @@ function renderParams() {
   flush();
 }
 
+// Build a styled <select> field with the shared chevron; onChange gets the value.
+function selectEl(id, label, options, current, onChange) {
+  const wrap = el('div', 'em-select');
+  wrap.innerHTML = `<label for="f_${id}">${label}</label><div class="wrap"><select id="f_${id}" aria-label="${label}">${options.map((o) => `<option ${String(o) === String(current) ? 'selected' : ''}>${o}</option>`).join('')}</select>${CHEV}</div>`;
+  wrap.querySelector('select').addEventListener('change', (e) => onChange(e.target.value));
+  return wrap;
+}
+
+// Apply a substrate preset: material presets overwrite εr/tanδ and snap the
+// thickness into the preset's standard set; 'Custom' just changes the options.
+function applyPreset(name) {
+  state.values.substratePreset = name;
+  const p = SUBSTRATE_PRESETS[name];
+  if (p && p.er != null) {
+    state.values.substrateEr = p.er;
+    state.values.lossTangent = p.tanD;
+    if (!p.thicknesses.includes(Number(state.values.substrateHeightMm))) state.values.substrateHeightMm = p.def;
+  }
+  renderParams();   // refresh εr / tanδ / thickness inputs to the preset values
+  render();
+}
+
 function fieldEl(id, f) {
   const v = state.values[id];
-  if (f.select) {
-    const wrap = el('div', 'em-select');
-    wrap.innerHTML = `<label for="f_${id}">${f.label}</label><div class="wrap"><select id="f_${id}" aria-label="${f.label}">${f.select.map((o) => `<option ${o === v ? 'selected' : ''}>${o}</option>`).join('')}</select><span class="chev"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg></span></div>`;
-    wrap.querySelector('select').addEventListener('change', (e) => { state.values[id] = e.target.value; render(); });
-    return wrap;
+  if (f.preset) return selectEl(id, f.label, Object.keys(SUBSTRATE_PRESETS), v, applyPreset);
+  if (f.thickness) {
+    const preset = SUBSTRATE_PRESETS[state.values.substratePreset] || SUBSTRATE_PRESETS.Custom;
+    const opts = preset.thicknesses.slice();
+    if (!opts.includes(Number(v))) opts.unshift(Number(v));   // keep an off-list value visible
+    return selectEl(id, `${f.label}${f.unit ? ` (${f.unit})` : ''}`, opts, Number(v), (val) => { state.values[id] = Number(val); render(); });
   }
+  if (f.select) return selectEl(id, f.label, f.select, v, (val) => { state.values[id] = val; render(); });
   const wrap = el('div', 'em-field' + (f.unit ? ' unit' : ''));
   const sym = f.sym ? `<span class="sym">${f.sym}</span>` : '';
   const unit = f.unit ? `<span class="u">${f.unit}</span>` : '';
@@ -221,7 +264,7 @@ function doDownload() {
   const freq = Number.isFinite(raw) ? raw : 0;   // never let junk input put "NaN" in the filename
   const blob = new Blob([currentVba()], { type: 'text/plain;charset=utf-8' });
   const url = URL.createObjectURL(blob);
-  const a = el('a'); a.href = url; a.download = `${state.type}-${freq}GHz-cst.vba`; a.click();
+  const a = el('a'); a.href = url; a.download = `${state.type}-${freq}GHz-cst.bas`; a.click();
   URL.revokeObjectURL(url);
 }
 
