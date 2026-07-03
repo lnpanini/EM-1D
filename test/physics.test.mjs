@@ -94,6 +94,43 @@ test('annular ring rho=2', () => {
   close(r.metrics.b / r.metrics.a, 2.0, 1e-3);
 });
 
+test('annular is a concentric N-ring parametric export', () => {
+  const base = {
+    type: 'annular', frequencyGHz: 2.45, substrateEr: 3.66, substrateHeightMm: 0.762,
+    lossTangent: 0.0037, ringRatio: 2, feedWidthMm: 1, portImpedance: 50,
+  };
+  // default two rings + connector + feed strip + edge port
+  const r2 = P.synthesize('annular', { ...base, ringCount: 2, ringGapMm: 1, innerRingWidthMm: 2.5 });
+  assert.equal(r2.metrics.ringCount, 2, 'two rings');
+  assert.equal(r2.geometry.filter((g) => g.shape === 'ring').length, 2, 'two ring solids');
+  assert.ok(r2.geometry.some((g) => g.shape === 'feed'), 'has an edge feed port');
+  assert.ok(r2.metrics.innermostRadius > 0, 'innermost radius stays positive');
+  close(r2.metrics.gap, 1, 1e-9);
+  const v2 = P.buildVba(r2, { ...base, ringCount: 2 });
+  assert.match(v2, /StoreDoubleParameter "r_out_o"/, 'defines outer-radius parameter');
+  assert.match(v2, /StoreParameter\s+"r1_o", "r_out_i - gap"/, 'derives ring 1 from gap');
+  assert.match(v2, /Parameter Sweep/, 'lists suggested sweep ranges');
+  assert.match(v2, /"Copper \(annealed\)"/, 'uses lossy copper');
+  assert.doesNotMatch(v2, /\.Material "pec"/, 'never lowercase pec');
+  assert.doesNotMatch(v2, /"Ring 2"/, 'only two rings -> no Ring 2');
+  assert.match(v2, /Sub Main[\s\S]*End Sub/);
+  assert.doesNotMatch(v2, /NaN|Infinity|undefined/);
+
+  // three rings with tighter spacing so they all fit
+  const r3 = P.synthesize('annular', { ...base, ringCount: 3, ringGapMm: 0.5, innerRingWidthMm: 1.0 });
+  assert.equal(r3.metrics.ringCount, 3, 'three rings fit');
+  assert.equal(r3.geometry.filter((g) => g.shape === 'ring').length, 3);
+  const v3 = P.buildVba(r3, { ...base, ringCount: 3 });
+  assert.match(v3, /define cylinder Ring 2/, 'third ring emitted');
+  assert.match(v3, /boolean add Connect 1/, 'second connector unioned');
+  assert.doesNotMatch(v3, /NaN|Infinity|undefined/);
+
+  // requesting more rings than fit collapses gracefully with a warning
+  const rMax = P.synthesize('annular', { ...base, ringCount: 5, ringGapMm: 2, innerRingWidthMm: 3 });
+  assert.ok(rMax.metrics.ringCount < 5, 'excess rings dropped');
+  assert.ok(rMax.warnings.some((w) => /rings fit/.test(w)), 'warns when rings do not fit');
+});
+
 // ---------------------------------------------------------------------------
 // Task 7: CP circular
 // ---------------------------------------------------------------------------
@@ -178,7 +215,9 @@ test('CP propagates non-matchable warning from disk', () => {
 });
 
 test('buildVba uses CST built-in PEC, never lowercase pec', () => {
-  for (const t of ['rect', 'dipole', 'disk', 'annular', 'cp', 'uwb']) {
+  // annular is excluded: its parametric export uses lossy "Copper (annealed)"
+  // instead of PEC (see the concentric-ring test below).
+  for (const t of ['rect', 'dipole', 'disk', 'cp', 'uwb']) {
     const base = {
       frequencyGHz: 2.4, lowerCutoffGHz: 3.1, substrateEr: 4.4, substrateHeightMm: 1.6,
       lossTangent: 0.02, conductorThicknessMm: 0.035, wireRadiusMm: 0.75,
