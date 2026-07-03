@@ -79,9 +79,9 @@ const VIEW = {
     results: (m) => [['Edge resistance', fmt(m.Redge, 1) + ' Ω'], ['Probe ρ₀', fmt(m.probeRho0) + ' mm', 1], ['Resonance check', fmt(m.frCheck, 3) + ' GHz'], ['Q factor', fmt(m.Qt, 1)], ['Ground radius', fmt(m.groundRadius) + ' mm'], ['Matchable', m.matchable ? 'yes' : 'no']],
   },
   annular: {
-    readout: (m) => [['R', fmt(m.b)], ['rings', String(m.ringCount)]],
-    kpis: (m) => [['Outer R · mm', fmt(m.b)], ['Rings', String(m.ringCount)], ['Bandwidth · %', fmt(m.bandwidthPct)]],
-    results: (m) => [['Rings', String(m.ringCount)], ['Outer ring a–b', `${fmt(m.a)} – ${fmt(m.b)} mm`], ['Inter-ring gap', fmt(m.gap) + ' mm', 1], ['Innermost radius', fmt(m.innermostRadius) + ' mm'], ['Feed width', fmt(m.feedWidth) + ' mm'], ['Board', `${fmt(m.boardX)} × ${fmt(m.boardY)} mm`], ['Q factor', fmt(m.Qt, 1)]],
+    readout: (m) => [['R', fmt(m.b)], ['rings', fmt(m.ringCount, 0)]],
+    kpis: (m) => [['Outer R · mm', fmt(m.b)], ['Rings', fmt(m.ringCount, 0)], ['Bandwidth · %', fmt(m.bandwidthPct)]],
+    results: (m) => [['Rings', fmt(m.ringCount, 0)], ['Outer ring a–b', `${fmt(m.a)} – ${fmt(m.b)} mm`], ['Inter-ring gap', fmt(m.gap) + ' mm', 1], ['Innermost radius', fmt(m.innermostRadius) + ' mm'], ['Feed width', fmt(m.feedWidth) + ' mm'], ['Board', `${fmt(m.boardX)} × ${fmt(m.boardY)} mm`], ['Q factor', fmt(m.Qt, 1)]],
   },
   cp: {
     readout: (m) => [['a', fmt(m.a)]],
