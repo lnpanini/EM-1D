@@ -2,7 +2,28 @@
 // 'three' resolves through the index.html importmap to src/vendor/three.module.js.
 import * as THREE from 'three';
 import { OrbitControls } from '/src/vendor/OrbitControls.js';
-import { geometryToMeshSpecs, sceneBounds } from './scene.js';
+import { geometryToMeshSpecs, sceneBounds, dimensionSpecs } from './scene.js';
+
+// Canvas-texture text sprite for dimension labels; height is in world units.
+function textSprite(label, height) {
+  const canvas = document.createElement('canvas');
+  const ctx = canvas.getContext('2d');
+  const font = '500 48px ui-monospace, SFMono-Regular, Menlo, monospace';
+  ctx.font = font;
+  const w = Math.ceil(ctx.measureText(label).width) + 20;
+  canvas.width = w; canvas.height = 68;
+  ctx.font = font; ctx.textBaseline = 'middle';
+  ctx.fillStyle = 'rgba(14,17,22,0.7)';
+  ctx.fillRect(0, 0, w, 68);
+  ctx.fillStyle = '#E3E8EE';
+  ctx.fillText(label, 10, 36);
+  const tex = new THREE.CanvasTexture(canvas);
+  const mat = new THREE.SpriteMaterial({ map: tex, depthTest: false, transparent: true });
+  const sprite = new THREE.Sprite(mat);
+  sprite.scale.set(height * (w / 68), height, 1);
+  sprite.renderOrder = 1000;
+  return sprite;
+}
 
 function meshFromSpec(s) {
   if (s.kind === 'box') {
@@ -70,6 +91,7 @@ export function createViewer(container) {
     while (modelGroup.children.length) {
       const c = modelGroup.children.pop();
       c.geometry?.dispose?.();
+      c.material?.map?.dispose?.();
       c.material?.dispose?.();
     }
   }
@@ -80,6 +102,25 @@ export function createViewer(container) {
     for (const s of specs) { const mesh = meshFromSpec(s); if (mesh) modelGroup.add(mesh); }
 
     const b = sceneBounds(specs);
+    if (b) {
+      // dimension overlay: lines + labels, drawn on top of the solids
+      const dimMat = new THREE.LineBasicMaterial({ color: 0x8fa3bd, depthTest: false, transparent: true, opacity: 0.85 });
+      for (const d of dimensionSpecs(geometry)) {
+        if (!d.views.includes('3d')) continue;
+        const g = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(...d.p1), new THREE.Vector3(...d.p2)]);
+        const line = new THREE.Line(g, dimMat.clone());
+        line.renderOrder = 999;
+        modelGroup.add(line);
+        const s = textSprite(d.label, b.size * 0.045);
+        s.position.set(
+          (d.p1[0] + d.p2[0]) / 2,
+          (d.p1[1] + d.p2[1]) / 2,
+          (d.p1[2] + d.p2[2]) / 2 + b.size * 0.02
+        );
+        modelGroup.add(s);
+      }
+      dimMat.dispose();
+    }
     if (b) {
       controls.target.set(...b.center);
       const d = b.size * 1.6;

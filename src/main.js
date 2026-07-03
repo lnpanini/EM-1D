@@ -1,6 +1,7 @@
 // EM-1D Antenna Synthesis Workbench — wires the design-system Workbench layout
 // to the physics engine (synthesize/buildVba) and the Three.js viewer.
 import { synthesize, buildVba, TYPES } from './physics.js';
+import { topViewSVG, sectionViewSVG } from './drawings.js';
 
 const $ = (id) => document.getElementById(id);
 const el = (tag, cls, html) => { const e = document.createElement(tag); if (cls) e.className = cls; if (html != null) e.innerHTML = html; return e; };
@@ -235,6 +236,11 @@ function render() {
   ro.replaceChildren();
   cfg.readout(m).forEach(([name, val]) => ro.appendChild(el('span', null, `${name} <b>${val}</b>`)));
   ro.appendChild(el('span', null, 'mm'));
+
+  // static dimensioned drawings
+  const empty = '<p class="dempty">No geometry — check the inputs.</p>';
+  $('topView').innerHTML = topViewSVG(result.geometry) || empty;
+  $('sectionView').innerHTML = sectionViewSVG(result.geometry) || empty;
 
   // export
   $('vba').textContent = buildVba(result, design);
