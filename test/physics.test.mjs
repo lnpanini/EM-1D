@@ -124,7 +124,7 @@ test('UWB disc monopole', () => {
 // ---------------------------------------------------------------------------
 // Task 9: synthesize dispatcher + buildVba
 // ---------------------------------------------------------------------------
-const ALL = ['rect', 'dipole', 'monopole', 'disk', 'annular', 'cp', 'uwb'];
+const ALL = ['rect', 'dipole', 'monopole', 'disk', 'annular', 'cp', 'uwb', 'serp'];
 
 test('synthesize all types robust', () => {
   for (const t of ALL) {
@@ -269,4 +269,16 @@ test('serpentine loop: synthesize + graceful degradation', () => {
   // missing frequency → clean empty result
   const nofreq = P.synthesize('serp', { type: 'serp', undulations: 25, ampRatio: 0.2, serpRatio: 0.05, substrateEr: 4.4, substrateHeightMm: 1.6 });
   assert.equal(nofreq.geometry.length, 0);
+});
+
+test('serpentine loop VBA: extruded polygon + port + substrate', () => {
+  const design = { type: 'serp', frequencyGHz: 2.45, undulations: 25, ampRatio: 0.20, serpRatio: 0.05,
+    traceWidthMm: 1.0, substrateEr: 4.4, substrateHeightMm: 1.6, lossTangent: 0.02, feedGapMm: 1, portImpedance: 50, groundPlane: 'Full' };
+  const r = P.synthesize('serp', design);
+  const vba = P.buildVba(r, design);
+  assert.match(vba, /With Extrude/);
+  assert.match(vba, /\.Mode "Pointlist"/);
+  assert.match(vba, /With DiscretePort/);
+  assert.match(vba, /\.Name "substrate"/);          // grounded FR-4 emits the dielectric material
+  assert.doesNotMatch(vba, /NaN|Infinity|undefined/);
 });

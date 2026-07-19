@@ -822,6 +822,28 @@ function vbaRotateZ(comp, name, angleDeg) {
   ].join('\n');
 }
 
+function vbaExtrudePolygon(name, comp, material, outline, z, height) {
+  const lines = [
+    'With Extrude',
+    '  .Reset',
+    `  .Name "${name}"`,
+    `  .Component "${comp}"`,
+    `  .Material "${mat(material)}"`,
+    '  .Mode "Pointlist"',
+    `  .Height ${vn(height)}`,
+    '  .Twist 0.0',
+    '  .Taper 0.0',
+    `  .Origin 0, 0, ${vn(z)}`,
+    '  .Uvector 1, 0, 0',
+    '  .Vvector 0, 1, 0',
+  ];
+  (outline || []).forEach((p, i) => {
+    lines.push(`  ${i === 0 ? '.Point' : '.LineTo'} ${vn(p[0])}, ${vn(p[1])}`);
+  });
+  lines.push('  .Create', 'End With');
+  return lines.join('\n');
+}
+
 function vbaDiscretePort(p, n) {
   const a = p.p1, b = p.p2;
   return [
@@ -945,6 +967,8 @@ export function buildVba(result, design) {
         if (rot) body.push(rot);
         body.push(vbaSubtract(comp, `seg_${i}`, name));
       }
+    } else if (p.shape === 'trace') {
+      body.push(vbaExtrudePolygon(`trace_${i}`, comp, p.material, p.outline, num(p.center[2]), p.thickness));
     } else if (p.shape === 'feed') {
       portN += 1;
       body.push(vbaDiscretePort(p, portN));
