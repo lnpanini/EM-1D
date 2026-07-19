@@ -92,6 +92,15 @@ test('serpentine loop geometry: trace + feed, substrate/ground per config', () =
   assert.ok(!none.geometry.some((p) => p.material === 'substrate')); // air → no dielectric slab
   assert.ok(!none.geometry.some((p) => p.shape === 'box' && p.material === 'pec')); // no ground
 });
+
+test('serpentine loop: buildable default (n=12) is clean; dense n self-overlaps', () => {
+  const mk = (n) => P.serpentineLoop({ frequencyGHz: 2.45, undulations: n, ampRatio: 0.20, serpRatio: 0.05,
+    traceWidthMm: 1.0, substrateEr: 4.4, substrateHeightMm: 1.6, feedGapMm: 1, portImpedance: 50, groundPlane: 'Full' });
+  assert.ok(!mk(12).warnings.some((w) => /self-overlap/.test(w)), 'n=12 default does not self-overlap');
+  assert.ok(mk(25).warnings.some((w) => /self-overlap/.test(w)), 'n=25 self-overlaps at 2.45 GHz');
+  // the heuristic must catch a moderate-n overlap (closest approach is ~half an undulation apart)
+  assert.ok(mk(14).warnings.some((w) => /self-overlap/.test(w)), 'n=14 self-overlaps');
+});
 ```
 
 - [ ] **Step 2: Run tests to verify they fail**
@@ -193,7 +202,7 @@ export function serpentineLoop(d) {
   }
   // coarse self-overlap check: non-adjacent centerline points closer than w
   const stepc = Math.max(1, Math.floor((M + 1) / 160));
-  const sep = Math.max(1, Math.floor((M + 1) / n));
+  const sep = Math.max(1, Math.floor((M + 1) / (2 * n)));   // skip same-strand neighbors (< half an undulation apart)
   let minSep = Infinity;
   for (let i = 0; i <= M; i += stepc)
     for (let j = i + sep; j <= M; j += stepc) {
@@ -208,7 +217,7 @@ export function serpentineLoop(d) {
     eeff, lamg, plainLoopD, miniaturize, Rrad, n, grounded, feedGap: g };
 
   const span = footprintD + 6 * h;
-  const tg = 0.035;
+  const tg = t;   // ground copper reuses the conductor thickness
   const geometry = [];
   geometry.push({ shape: 'trace', material: 'pec', outline, center: [0, 0, 0], thickness: t });
   if (er > 1) geometry.push({ shape: 'box', material: 'substrate', center: [0, 0, -h / 2], size: { x: span, y: span, z: h } });
@@ -494,7 +503,7 @@ const GLYPH = { rect: 'g-rect', dipole: 'g-line', monopole: 'g-vline', disk: 'g-
 
 Edit B — add these entries to the `FIELDS` object (before the closing `};`):
 ```js
-  undulations:   { label: 'Undulations', sym: 'n', def: 25, group: 'Shape' },
+  undulations:   { label: 'Undulations', sym: 'n', def: 12, group: 'Shape' },
   ampRatio:      { label: 'Undulation depth', sym: 'A/R', def: 0.20, group: 'Shape' },
   serpRatio:     { label: 'Serpentine kink', sym: 'S/R', def: 0.05, group: 'Shape' },
   traceWidthMm:  { label: 'Trace width', sym: 'w', unit: 'mm', def: 1.0, group: 'Shape' },
@@ -548,8 +557,8 @@ npm run dev    # serves http://localhost:5173
 ```
 Open the page, click **Serpentine Loop** in the topology picker, and confirm:
 - the glyph shows a segmented ring; the Shape/Substrate/Feed fields appear (n, A/R, S/R, w, εr, h, tanδ, Ground plane, gap, Z₀);
-- KPIs read Footprint Ø ≈ 7.62 mm, Conductor ≈ 69.7 mm, Meander ≈ 4.02× at the defaults;
-- toggling Ground plane `None` grows Footprint Ø to ≈ 8.07 mm; a radiation-suppression warning shows on `Full`;
+- KPIs read Footprint Ø ≈ 13.44 mm, Conductor ≈ 69.7 mm, Meander ≈ 2.14× at the defaults (n=12);
+- toggling Ground plane `None` grows Footprint Ø to ≈ 14.28 mm; a radiation-suppression warning shows on `Full`; setting `n` to 25 shows a self-overlap warning;
 - the CST export panel contains `With Extrude` / `.Mode "Pointlist"`.
 
 - [ ] **Step 5: Commit**

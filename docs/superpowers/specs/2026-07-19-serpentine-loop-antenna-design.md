@@ -21,7 +21,12 @@ y(t) = (R + A·sin n t)·sin t − S·sin 2n t·cos t        0 ≤ t ≤ 2π
 
 `R` = base radius, `A` = radial undulation amplitude, `n` = number of undulations, `S` = the
 serpentine "kink" amplitude (the `sin 2n t` term that makes each lobe S-shaped rather than a plain
-scallop). Reference instance (validated in preview): `n=25, A/R=0.20, S/R=0.05`.
+scallop). The source instance is `n=25, A/R=0.20, S/R=0.05`. **Default `n` is 12, not 25:** sizing the
+`n=25` curve to resonate at 2.45 GHz shrinks the loop to a ~2.8 mm base radius, packing the fingers
+tighter than any trace width (inter-finger gaps ~0.17 mm) so the ribbon self-intersects. `n=12` is the
+largest count that stays buildable with a 1 mm trace at 2.45 GHz (footprint ~13.4 mm). Users can still
+enter `n=25` and get a self-overlap warning. (Meander loops are a low-frequency miniaturization
+technique — high `n` belongs at sub-GHz, where the loop is physically larger.)
 
 Physically this is a **resonant one-wavelength loop**: the undulations pack a full guided wavelength
 of conductor into a compact footprint. Synthesis is first-order/closed-form (one numerical integral),
@@ -148,7 +153,9 @@ Rrad        ≈ 100 Ω         (1λ-loop estimate; reported only for groundPlane
 No `X`, no `Q`, no `bandwidthPct` — those require full-wave and are deliberately omitted.
 
 **Warnings:** clamp `n` to an integer ≥ 4 (warn if coerced); warn "trace may self-overlap — reduce
-width or undulations" when the minimum separation between non-adjacent centerline samples < `w`; warn
+width or undulations" when the closest approach between centerline samples **more than half an
+undulation apart** (different strands, not the same finger) is < `w` — the check must skip within-finger
+neighbors or it measures the wrong distance and misses moderate-`n` overlaps; warn
 if the feed-gap half-angle δ (§6) ≥ π/n; and — when `groundPlane='Full'` — warn "full ground ≈h behind
 the loop suppresses radiation; grounded loop behaves as a resonator, not an efficient 1λ radiator."
 
@@ -165,7 +172,7 @@ Rrad, n, grounded, feedGap }` (`Rrad` is `null` when grounded; `grounded` is a b
    for `t ∈ [δ/2, 2π − δ/2]` at `M+1` points, `M = max(720, 16·n)`, using real `R, A, S`.
 2. Per-vertex unit normal from the central-difference tangent; offset each point by `±w/2` →
    `left[]`, `right[]`. Ribbon polygon = `left[0..M]` then `right[M..0]` (closed).
-3. Emit primitives (conductor thickness `t = conductorThicknessMm || 0.035`; ground copper `tg = 0.035`;
+3. Emit primitives (conductor thickness `t = conductorThicknessMm || 0.035`; ground copper `tg = t`;
    slab/ground span `span = footprintD + 6h`):
    - `{ shape:'trace', material:'pec', outline, center:[0,0,0], thickness: t }`   (z = 0..t)
    - if `εr > 1`: `{ shape:'box', material:'substrate', center:[0,0,−h/2], size:{x:span,y:span,z:h} }`
@@ -180,7 +187,7 @@ Rrad, n, grounded, feedGap }` (`Rrad` is `null` when grounded; `grounded` is a b
 
 | key | label | sym | unit | default |
 |---|---|---|---|---|
-| `undulations` | Undulations | n | — | 25 |
+| `undulations` | Undulations | n | — | 12 |
 | `ampRatio` | Undulation depth | A/R | — | 0.20 |
 | `serpRatio` | Serpentine kink | S/R | — | 0.05 |
 | `traceWidthMm` | Trace width | w | mm | 1.0 |
@@ -261,6 +268,9 @@ Reference values from an independent Node re-implementation of §5 (match the li
 - `groundPlane='Full'` on FR-4 → geometry has exactly one `trace`, one `substrate` box, one `pec`
   ground box, one `feed`. `groundPlane='None'` → no ground box. `εr=1` → no substrate box.
 - `trace.outline` is a closed polygon of `2·(M+1)` vertices, no self-intersection at default width.
+- **Warning state:** the buildable default (`n=12`, `w=1.0`, 2.45 GHz) emits **no** self-overlap
+  warning; `n=25` **does**; and a moderate overlap case (`n=14`) also does — this last assertion guards
+  the closest-approach heuristic against the full-period-offset bug that would miss it.
 - `scene.test`: `trace` → exactly one `{ kind:'shape' }` spec; `sceneBounds` finite, spans `≈ footprintD`.
 
 **Robustness:** `synthesize('serp', …)` returns finite metrics + non-empty geometry; degenerate inputs
@@ -269,6 +279,10 @@ Reference values from an independent Node re-implementation of §5 (match the li
 
 ## 10. Risks / open questions
 
+- **Undulation count vs frequency (feasibility)** — high `n` at high `f₀` is geometrically impossible:
+  the resonant loop shrinks faster than the fingers can be spaced. Default `n=12` is buildable at
+  2.45 GHz; `n=25` needs sub-GHz to be manufacturable. Surfaced via the self-overlap warning, not
+  blocked — the user may knowingly explore. (Decided: default `n=12`, keep `n` free.)
 - **Full-ground radiation suppression** — physically real and the whole point of the warning: a loop
   ~0.013λ above ground barely radiates. Kept as an exportable configuration (per user request) with an
   explicit warning; `Rrad` est is withheld when grounded. (Decided.)
