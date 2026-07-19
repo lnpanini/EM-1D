@@ -190,3 +190,53 @@ test('buildVba uses CST built-in PEC, never lowercase pec', () => {
     assert.match(vba, /"PEC"/, `${t} should reference built-in PEC`);
   }
 });
+
+// ---------------------------------------------------------------------------
+// Task 8: serpentine loop
+// ---------------------------------------------------------------------------
+test('serpentine shape factor: plain circle = 2π; kink adds length', () => {
+  close(P.serpShapeFactor(10, 0, 0), 2 * Math.PI, 1e-4);
+  close(P.serpShapeFactor(25, 0.2, 0.05), 25.2668, 1e-3);
+  close(P.serpShapeFactor(25, 0.2, 0), 21.4111, 1e-3);
+});
+
+test('serpentine loop: grounded FR-4 default sizing', () => {
+  const r = P.serpentineLoop({ frequencyGHz: 2.45, undulations: 25, ampRatio: 0.20, serpRatio: 0.05,
+    traceWidthMm: 1.0, substrateEr: 4.4, substrateHeightMm: 1.6, feedGapMm: 1.0, portImpedance: 50, groundPlane: 'Full' });
+  close(r.metrics.eeff, 3.0782, 1e-3);
+  close(r.metrics.R, 2.7603, 1e-2);
+  close(r.metrics.footprintD, 7.6247, 2e-2);
+  close(r.metrics.meander, 4.0213, 1e-2);
+  close(r.metrics.Lpath, r.metrics.lamg, 1e-6);   // 1λ solve self-check
+  assert.equal(r.metrics.Rrad, null);              // grounded → radiation estimate withheld
+});
+
+test('serpentine loop: no-ground and air re-size larger', () => {
+  const base = { frequencyGHz: 2.45, undulations: 25, ampRatio: 0.20, serpRatio: 0.05,
+    traceWidthMm: 1.0, substrateEr: 4.4, substrateHeightMm: 1.6, feedGapMm: 1.0, portImpedance: 50 };
+  const none = P.serpentineLoop({ ...base, groundPlane: 'None' });
+  close(none.metrics.eeff, 2.70, 1e-3);
+  close(none.metrics.R, 2.9473, 1e-2);
+  close(none.metrics.footprintD, 8.0735, 2e-2);
+  assert.equal(none.metrics.Rrad, 100);
+  const air = P.serpentineLoop({ ...base, substrateEr: 1, groundPlane: 'None' });
+  close(air.metrics.eeff, 1, 1e-9);
+  close(air.metrics.R, 4.8429, 1e-2);
+});
+
+test('serpentine loop geometry: trace + feed, substrate/ground per config', () => {
+  const full = P.serpentineLoop({ frequencyGHz: 2.45, undulations: 25, ampRatio: 0.20, serpRatio: 0.05,
+    traceWidthMm: 1.0, substrateEr: 4.4, substrateHeightMm: 1.6, feedGapMm: 1, portImpedance: 50, groundPlane: 'Full' });
+  const shapes = full.geometry.map((p) => p.shape);
+  assert.equal(shapes.filter((k) => k === 'trace').length, 1);
+  assert.ok(full.geometry.some((p) => p.shape === 'feed'));
+  assert.ok(full.geometry.some((p) => p.material === 'substrate'));
+  assert.ok(full.geometry.some((p) => p.shape === 'box' && p.material === 'pec')); // ground
+  const trace = full.geometry.find((p) => p.shape === 'trace');
+  assert.ok(trace.outline.length >= 1440 && trace.outline.length % 2 === 0);
+  for (const pt of trace.outline) assert.ok(Number.isFinite(pt[0]) && Number.isFinite(pt[1]));
+  const none = P.serpentineLoop({ frequencyGHz: 2.45, undulations: 25, ampRatio: 0.20, serpRatio: 0.05,
+    traceWidthMm: 1.0, substrateEr: 1, substrateHeightMm: 1.6, feedGapMm: 1, portImpedance: 50, groundPlane: 'None' });
+  assert.ok(!none.geometry.some((p) => p.material === 'substrate')); // air → no dielectric slab
+  assert.ok(!none.geometry.some((p) => p.shape === 'box' && p.material === 'pec')); // no ground
+});
