@@ -240,3 +240,11 @@ test('serpentine loop geometry: trace + feed, substrate/ground per config', () =
   assert.ok(!none.geometry.some((p) => p.material === 'substrate')); // air → no dielectric slab
   assert.ok(!none.geometry.some((p) => p.shape === 'box' && p.material === 'pec')); // no ground
 });
+
+test('serpentine loop: buildable default (n=12) is clean; dense n self-overlaps', () => {
+  const mk = (n) => P.serpentineLoop({ frequencyGHz: 2.45, undulations: n, ampRatio: 0.20, serpRatio: 0.05,
+    traceWidthMm: 1.0, substrateEr: 4.4, substrateHeightMm: 1.6, feedGapMm: 1, portImpedance: 50, groundPlane: 'Full' });
+  assert.ok(!mk(12).warnings.some((w) => /self-overlap/.test(w)), 'n=12 default does not self-overlap');
+  assert.ok(mk(25).warnings.some((w) => /self-overlap/.test(w)), 'n=25 self-overlaps at 2.45 GHz');
+  assert.ok(mk(14).warnings.some((w) => /self-overlap/.test(w)), 'n=14 self-overlaps (heuristic checks closest approach)');
+});

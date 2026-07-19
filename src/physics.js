@@ -659,7 +659,7 @@ export function serpentineLoop(d) {
   }
   // coarse self-overlap check: non-adjacent centerline points closer than w
   const stepc = Math.max(1, Math.floor((M + 1) / 160));
-  const sep = Math.max(1, Math.floor((M + 1) / n));
+  const sep = Math.max(1, Math.floor((M + 1) / (2 * n)));   // skip same-strand neighbors (< half an undulation apart)
   let minSep = Infinity;
   for (let i = 0; i <= M; i += stepc)
     for (let j = i + sep; j <= M; j += stepc) {
@@ -674,7 +674,7 @@ export function serpentineLoop(d) {
     eeff, lamg, plainLoopD, miniaturize, Rrad, n, grounded, feedGap: g };
 
   const span = footprintD + 6 * h;
-  const tg = 0.035;
+  const tg = t;   // ground copper reuses the conductor thickness
   const geometry = [];
   geometry.push({ shape: 'trace', material: 'pec', outline, center: [0, 0, 0], thickness: t });
   if (er > 1) geometry.push({ shape: 'box', material: 'substrate', center: [0, 0, -h / 2], size: { x: span, y: span, z: h } });
