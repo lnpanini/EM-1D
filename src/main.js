@@ -7,7 +7,7 @@ const el = (tag, cls, html) => { const e = document.createElement(tag); if (cls)
 const fmt = (v, p = 2) => (Number.isFinite(Number(v)) ? String(Number(Number(v).toFixed(p))) : '—');
 const glyphHTML = (type) => `<span class="${GLYPH[type]}"></span>`;
 
-const GLYPH = { rect: 'g-rect', dipole: 'g-line', monopole: 'g-vline', disk: 'g-disk', annular: 'g-ring', cp: 'g-cp', uwb: 'g-uwb' };
+const GLYPH = { rect: 'g-rect', dipole: 'g-line', monopole: 'g-vline', disk: 'g-disk', annular: 'g-ring', cp: 'g-cp', uwb: 'g-uwb', serp: 'g-serp' };
 
 // ---- field descriptors -----------------------------------------------------
 const FIELDS = {
@@ -24,6 +24,11 @@ const FIELDS = {
   groundWidthMm:     { label: 'Ground width', unit: 'mm', def: 100, group: 'Geometry' },
   ringRatio:         { label: 'Ring ratio b/a', sym: 'ρ', def: 2, group: 'Geometry' },
   polarization:      { label: 'Polarization', group: 'Feed', select: ['RHCP', 'LHCP'] },
+  undulations:       { label: 'Undulations', sym: 'n', def: 12, group: 'Shape' },
+  ampRatio:          { label: 'Undulation depth', sym: 'A/R', def: 0.20, group: 'Shape' },
+  serpRatio:         { label: 'Serpentine kink', sym: 'S/R', def: 0.05, group: 'Shape' },
+  traceWidthMm:      { label: 'Trace width', sym: 'w', unit: 'mm', def: 1.0, group: 'Shape' },
+  groundPlane:       { label: 'Ground plane', group: 'Substrate', select: ['Full', 'None'] },
 };
 const TYPE_FIELDS = {
   rect: ['frequencyGHz', 'substrateEr', 'substrateHeightMm', 'lossTangent', 'conductorThicknessMm', 'portImpedance'],
@@ -33,6 +38,7 @@ const TYPE_FIELDS = {
   annular: ['frequencyGHz', 'substrateEr', 'substrateHeightMm', 'lossTangent', 'portImpedance', 'ringRatio'],
   cp: ['frequencyGHz', 'substrateEr', 'substrateHeightMm', 'lossTangent', 'portImpedance', 'polarization'],
   uwb: ['lowerCutoffGHz', 'feedGapMm', 'groundLengthMm', 'groundWidthMm'],
+  serp: ['frequencyGHz', 'undulations', 'ampRatio', 'serpRatio', 'traceWidthMm', 'substrateEr', 'substrateHeightMm', 'lossTangent', 'groundPlane', 'feedGapMm', 'portImpedance'],
 };
 
 const zstr = (m) => `${fmt(m.R, 1)} ${Number(m.X) >= 0 ? '+' : '−'} j${fmt(Math.abs(Number(m.X)), 1)} Ω`;
@@ -73,6 +79,20 @@ const VIEW = {
     readout: (m) => [['r', fmt(m.discRadius)], ['req', fmt(m.reqRadius)]],
     kpis: (m) => [['Disc r · mm', fmt(m.discRadius)], ['Equiv. r · mm', fmt(m.reqRadius)], ['f_L · GHz', fmt(m.fLcheck, 3)]],
     results: (m) => [['Ground width', fmt(m.groundW) + ' mm'], ['Ground length', fmt(m.groundL) + ' mm']],
+  },
+  serp: {
+    readout: (m) => [['R', fmt(m.R)], ['Ø', fmt(m.footprintD)]],
+    kpis: (m) => [['Footprint Ø · mm', fmt(m.footprintD)], ['Conductor · mm', fmt(m.Lpath)], ['Meander · ×', fmt(m.meander, 2)]],
+    results: (m) => [
+      ['Base radius R', fmt(m.R) + ' mm'],
+      ['Guided λg', fmt(m.lamg) + ' mm'],
+      ['Effective εeff', fmt(m.eeff, 2)],
+      ['Ground plane', m.grounded ? 'full' : 'none'],
+      ['Miniaturization', fmt(m.miniaturize, 2) + '×'],
+      ['Undulations n', fmt(m.n, 0)],
+      ['Rad. resistance', m.Rrad == null ? '— (grounded)' : '≈ ' + fmt(m.Rrad, 0) + ' Ω', 1],
+      ['Feed gap', fmt(m.feedGap) + ' mm'],
+    ],
   },
 };
 
@@ -287,6 +307,7 @@ function mainSize(p) {
     case 'dipole': return `arm ${fmt(m.armMm)} mm`;
     case 'monopole': return `h ${fmt(m.heightMm)} mm`;
     case 'uwb': return `r ${fmt(m.discRadius)} mm`;
+    case 'serp': return `Ø ${fmt(m.footprintD)} mm`;
     default: return '—';
   }
 }
@@ -295,6 +316,7 @@ function edgeOrZ(p) {
   if (p.type === 'rect') return fmt(m.Rin0, 1) + ' Ω';
   if (p.type === 'disk') return fmt(m.Redge, 1) + ' Ω';
   if (p.type === 'dipole' || p.type === 'monopole') return zstr(m);
+  if (p.type === 'serp') return p.metrics.grounded ? 'grounded' : '≈ ' + fmt(p.metrics.Rrad, 0) + ' Ω';
   return '—';
 }
 

@@ -129,6 +129,8 @@ svg { display: block; }
 .g-cp { width: 46%; aspect-ratio: 1; border-radius: 50%; background: radial-gradient(circle at 38% 32%,#dfe4ea,#bfc7d0 70%); box-shadow: 0 0 0 4px rgba(46,125,91,.5); }
 .g-cp::after { content: ""; position: absolute; right: 30%; top: 30%; width: 5px; height: 5px; background: var(--mat-feed); border-radius: 50%; }
 .g-uwb { width: 42%; aspect-ratio: 1; border-radius: 50% 50% 46% 46%; background: radial-gradient(circle at 40% 34%,#dfe4ea,#bfc7d0 72%); }
+.g-serp { position: relative; width: 46%; aspect-ratio: 1; border-radius: 50%; background: repeating-conic-gradient(#dfe4ea 0deg 8deg,#b4bcc6 8deg 16deg); box-shadow: 0 0 0 4px rgba(46,125,91,.5); }
+.g-serp::after { content: ""; position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%); width: 46%; aspect-ratio: 1; border-radius: 50%; background: var(--panel-900); box-shadow: inset 0 0 0 1px rgba(46,125,91,.7); }
 
 /* ---- field groups ---- */
 .fgroup { display: grid; gap: 12px; }
