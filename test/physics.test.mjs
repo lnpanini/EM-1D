@@ -150,8 +150,8 @@ test('synthesize blank freq degrades', () => {
   assert.doesNotMatch(vba, /NaN|Infinity|undefined/);
 });
 
-test('TYPES exports 7 entries', () => {
-  assert.equal(P.TYPES.length, 7);
+test('TYPES exports 8 entries', () => {
+  assert.equal(P.TYPES.length, 8);
   for (const t of P.TYPES) { assert.ok(t.key); assert.ok(t.label); }
 });
 
@@ -247,4 +247,25 @@ test('serpentine loop: buildable default (n=12) is clean; dense n self-overlaps'
   assert.ok(!mk(12).warnings.some((w) => /self-overlap/.test(w)), 'n=12 default does not self-overlap');
   assert.ok(mk(25).warnings.some((w) => /self-overlap/.test(w)), 'n=25 self-overlaps at 2.45 GHz');
   assert.ok(mk(14).warnings.some((w) => /self-overlap/.test(w)), 'n=14 self-overlaps (heuristic checks closest approach)');
+});
+
+// ---------------------------------------------------------------------------
+// Task 2: register serp in dispatcher
+// ---------------------------------------------------------------------------
+test('serp is registered in TYPES', () => {
+  assert.ok(P.TYPES.some((t) => t.key === 'serp' && /serpentine/i.test(t.label)));
+});
+
+test('serpentine loop: synthesize + graceful degradation', () => {
+  const good = P.synthesize('serp', { type: 'serp', frequencyGHz: 2.45, undulations: 25, ampRatio: 0.20,
+    serpRatio: 0.05, traceWidthMm: 1.0, substrateEr: 4.4, substrateHeightMm: 1.6, feedGapMm: 1, portImpedance: 50, groundPlane: 'Full' });
+  assert.ok(good.geometry.length >= 3);
+  for (const k in good.metrics) { const v = good.metrics[k]; if (typeof v === 'number') assert.ok(Number.isFinite(v), k); }
+  // n < 4 → coerced with a warning, still finite geometry
+  const bad = P.synthesize('serp', { type: 'serp', frequencyGHz: 2.45, undulations: 1, ampRatio: 0.20,
+    serpRatio: 0.05, traceWidthMm: 1.0, substrateEr: 4.4, substrateHeightMm: 1.6, feedGapMm: 1, portImpedance: 50 });
+  assert.ok(bad.geometry.length >= 1 && bad.warnings.length >= 1);
+  // missing frequency → clean empty result
+  const nofreq = P.synthesize('serp', { type: 'serp', undulations: 25, ampRatio: 0.2, serpRatio: 0.05, substrateEr: 4.4, substrateHeightMm: 1.6 });
+  assert.equal(nofreq.geometry.length, 0);
 });

@@ -695,6 +695,7 @@ export const TYPES = [
   { key: 'annular', label: 'Annular Ring Patch' },
   { key: 'cp', label: 'CP Circular Patch' },
   { key: 'uwb', label: 'UWB Disc Monopole' },
+  { key: 'serp', label: 'Serpentine Loop' },
 ];
 
 function sanitizeNum(o, ctx) {
@@ -719,7 +720,7 @@ function sanitizeResult(r) {
   return r;
 }
 
-const SUBSTRATE_TYPES = new Set(['rect', 'disk', 'annular', 'cp']);
+const SUBSTRATE_TYPES = new Set(['rect', 'disk', 'annular', 'cp', 'serp']);
 
 export function synthesize(type, design) {
   const fail = (msg) => ({ inputs: { ...design }, metrics: {}, warnings: [msg], geometry: [] });
@@ -739,6 +740,7 @@ export function synthesize(type, design) {
       case 'annular': r = annularRing(design); break;
       case 'cp': r = cpCircular(design); break;
       case 'uwb': r = discMonopoleUWB(design); break;
+      case 'serp': r = serpentineLoop(design); break;
       default:
         return { inputs: { ...design }, metrics: {}, warnings: ['unknown antenna type: ' + type], geometry: [] };
     }
