@@ -249,6 +249,17 @@ test('serpentine loop: buildable default (n=12) is clean; dense n self-overlaps'
   assert.ok(mk(14).warnings.some((w) => /self-overlap/.test(w)), 'n=14 self-overlaps (heuristic checks closest approach)');
 });
 
+test('serpentine loop: feed gap smaller than trace width is not a self-overlap; trace sits at mid-plane', () => {
+  const r = P.serpentineLoop({ frequencyGHz: 2.45, undulations: 12, ampRatio: 0.20, serpRatio: 0.05,
+    traceWidthMm: 1.0, substrateEr: 4.4, substrateHeightMm: 1.6, feedGapMm: 0.5, portImpedance: 50, groundPlane: 'Full' });
+  assert.ok(!r.warnings.some((w) => /self-overlap/.test(w)), 'narrow feed gap must not read as self-overlap');
+  const trace = r.geometry.find((p) => p.shape === 'trace');
+  close(trace.center[2], trace.thickness / 2, 1e-12);   // conductor mid-plane
+  // VBA still extrudes from z=0 (origin = center[2] - thickness/2)
+  const vba = P.buildVba(r, { type: 'serp', frequencyGHz: 2.45, substrateEr: 4.4, lossTangent: 0.02 });
+  assert.match(vba, /\.Origin 0, 0, 0/);
+});
+
 // ---------------------------------------------------------------------------
 // Task 2: register serp in dispatcher
 // ---------------------------------------------------------------------------

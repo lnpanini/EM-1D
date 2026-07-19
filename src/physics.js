@@ -663,6 +663,7 @@ export function serpentineLoop(d) {
   let minSep = Infinity;
   for (let i = 0; i <= M; i += stepc)
     for (let j = i + sep; j <= M; j += stepc) {
+      if (j - i > M - sep) continue;   // skip the two ribbon ends straddling the feed gap (~g apart, not an overlap)
       const dd = Math.hypot(spine[i][0] - spine[j][0], spine[i][1] - spine[j][1]);
       if (dd < minSep) minSep = dd;
     }
@@ -676,7 +677,7 @@ export function serpentineLoop(d) {
   const span = footprintD + 6 * h;
   const tg = t;   // ground copper reuses the conductor thickness
   const geometry = [];
-  geometry.push({ shape: 'trace', material: 'pec', outline, center: [0, 0, 0], thickness: t });
+  geometry.push({ shape: 'trace', material: 'pec', outline, center: [0, 0, t / 2], thickness: t });
   if (er > 1) geometry.push({ shape: 'box', material: 'substrate', center: [0, 0, -h / 2], size: { x: span, y: span, z: h } });
   if (grounded) geometry.push({ shape: 'box', material: 'pec', center: [0, 0, -h - tg / 2], size: { x: span, y: span, z: tg } });
   geometry.push({ shape: 'feed', material: 'feed', p1: [spine[0][0], spine[0][1], 0], p2: [spine[M][0], spine[M][1], 0], impedance: Zin });
@@ -968,7 +969,7 @@ export function buildVba(result, design) {
         body.push(vbaSubtract(comp, `seg_${i}`, name));
       }
     } else if (p.shape === 'trace') {
-      body.push(vbaExtrudePolygon(`trace_${i}`, comp, p.material, p.outline, num(p.center[2]), p.thickness));
+      body.push(vbaExtrudePolygon(`trace_${i}`, comp, p.material, p.outline, num(p.center[2]) - num(p.thickness) / 2, p.thickness));
     } else if (p.shape === 'feed') {
       portN += 1;
       body.push(vbaDiscretePort(p, portN));
