@@ -174,7 +174,9 @@ Rrad, n, grounded, feedGap }` (`Rrad` is `null` when grounded; `grounded` is a b
    `left[]`, `right[]`. Ribbon polygon = `left[0..M]` then `right[M..0]` (closed).
 3. Emit primitives (conductor thickness `t = conductorThicknessMm || 0.035`; ground copper `tg = t`;
    slab/ground span `span = footprintD + 6h`):
-   - `{ shape:'trace', material:'pec', outline, center:[0,0,0], thickness: t }`   (z = 0..t)
+   - `{ shape:'trace', material:'pec', outline, center:[0,0,t/2], thickness: t }`   (conductor mid-plane, like
+     `segment`; solid spans z = 0..t, sitting on the substrate top — the flat viewer plane at z=t/2 clears the
+     substrate face so it doesn't z-fight. `buildVba` extrudes from `center[2] − t/2`.)
    - if `εr > 1`: `{ shape:'box', material:'substrate', center:[0,0,−h/2], size:{x:span,y:span,z:h} }`
    - if `groundPlane='Full'`: `{ shape:'box', material:'pec', center:[0,0,−h−tg/2], size:{x:span,y:span,z:tg} }`
    - `{ shape:'feed', material:'feed', p1:[…spine start,0], p2:[…spine end,0], impedance: Zin }`

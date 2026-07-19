@@ -206,6 +206,7 @@ export function serpentineLoop(d) {
   let minSep = Infinity;
   for (let i = 0; i <= M; i += stepc)
     for (let j = i + sep; j <= M; j += stepc) {
+      if (j - i > M - sep) continue;   // skip the two ribbon ends straddling the feed gap (~g apart, not an overlap)
       const dd = Math.hypot(spine[i][0] - spine[j][0], spine[i][1] - spine[j][1]);
       if (dd < minSep) minSep = dd;
     }
@@ -219,7 +220,7 @@ export function serpentineLoop(d) {
   const span = footprintD + 6 * h;
   const tg = t;   // ground copper reuses the conductor thickness
   const geometry = [];
-  geometry.push({ shape: 'trace', material: 'pec', outline, center: [0, 0, 0], thickness: t });
+  geometry.push({ shape: 'trace', material: 'pec', outline, center: [0, 0, t / 2], thickness: t });
   if (er > 1) geometry.push({ shape: 'box', material: 'substrate', center: [0, 0, -h / 2], size: { x: span, y: span, z: h } });
   if (grounded) geometry.push({ shape: 'box', material: 'pec', center: [0, 0, -h - tg / 2], size: { x: span, y: span, z: tg } });
   geometry.push({ shape: 'feed', material: 'feed', p1: [spine[0][0], spine[0][1], 0], p2: [spine[M][0], spine[M][1], 0], impedance: Zin });
@@ -269,7 +270,8 @@ test('serpentine loop: synthesize + graceful degradation', () => {
   // n < 4 → coerced with a warning, still finite geometry
   const bad = P.synthesize('serp', { type: 'serp', frequencyGHz: 2.45, undulations: 1, ampRatio: 0.20,
     serpRatio: 0.05, traceWidthMm: 1.0, substrateEr: 4.4, substrateHeightMm: 1.6, feedGapMm: 1, portImpedance: 50 });
-  assert.ok(bad.geometry.length >= 1 && bad.warnings.length >= 1);
+  assert.ok(bad.geometry.length >= 1);
+  assert.ok(bad.warnings.some((w) => /coerced/.test(w)), 'n<4 coercion warning present');
   // missing frequency → clean empty result
   const nofreq = P.synthesize('serp', { type: 'serp', undulations: 25, ampRatio: 0.2, serpRatio: 0.05, substrateEr: 4.4, substrateHeightMm: 1.6 });
   assert.equal(nofreq.geometry.length, 0);
@@ -457,7 +459,7 @@ Edit B — add the `trace` branch inside `buildVba`'s `geometry.forEach((p, i) =
 
 ```js
     } else if (p.shape === 'trace') {
-      body.push(vbaExtrudePolygon(`trace_${i}`, comp, p.material, p.outline, num(p.center[2]), p.thickness));
+      body.push(vbaExtrudePolygon(`trace_${i}`, comp, p.material, p.outline, num(p.center[2]) - num(p.thickness) / 2, p.thickness));
 ```
 
 - [ ] **Step 4: Run tests to verify they pass**
