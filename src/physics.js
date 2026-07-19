@@ -631,6 +631,120 @@ export function discMonopoleUWB(d) {
 }
 
 // ---------------------------------------------------------------------------
+// 6.8 Serpentine (meander) loop — resonant 1λ loop, FR-4 ± ground
+// Curve (unit R, a=A/R, s=S/R):
+//   x̂=(1+a·sin nt)·cos t + s·sin 2nt·sin t ; ŷ=(1+a·sin nt)·sin t − s·sin 2nt·cos t
+// ---------------------------------------------------------------------------
+function serpSpeed(t, n, a, s) {
+  const u = 1 + a * Math.sin(n * t);
+  const up = a * n * Math.cos(n * t);
+  const s2 = Math.sin(2 * n * t), c2 = Math.cos(2 * n * t);
+  const ct = Math.cos(t), st = Math.sin(t);
+  const xp = up * ct - u * st + s * (2 * n * c2 * st + s2 * ct);
+  const yp = up * st + u * ct - s * (2 * n * c2 * ct - s2 * st);
+  return Math.hypot(xp, yp);
+}
+
+// Unit-curve length G = ∮₀^{2π} |r'| dt (dense composite Simpson).
+export function serpShapeFactor(n, a, s) {
+  let N = Math.max(4000, 120 * Math.round(n)); if (N % 2) N++;
+  const dx = (2 * Math.PI) / N;
+  let sum = serpSpeed(0, n, a, s) + serpSpeed(2 * Math.PI, n, a, s);
+  for (let i = 1; i < N; i++) sum += (i % 2 ? 4 : 2) * serpSpeed(i * dx, n, a, s);
+  return sum * dx / 3;
+}
+
+function serpPoint(t, R, A, S, n) {
+  const u = R + A * Math.sin(n * t);
+  const v = S * Math.sin(2 * n * t);
+  const ct = Math.cos(t), st = Math.sin(t);
+  return [u * ct + v * st, u * st - v * ct];
+}
+
+export function serpentineLoop(d) {
+  const fGHz = num(d.frequencyGHz);
+  const er = num(d.substrateEr) || 1;
+  const h = num(d.substrateHeightMm) || 1.6;
+  const w = num(d.traceWidthMm) || 1.0;
+  const a = num(d.ampRatio);
+  const s = num(d.serpRatio);
+  const g = num(d.feedGapMm) || 1.0;
+  const Zin = num(d.portImpedance) || 50;
+  const t = num(d.conductorThicknessMm) || 0.035;
+  const grounded = (d.groundPlane || 'Full') === 'Full';
+  const warnings = [];
+
+  let n = Math.round(num(d.undulations));
+  if (!(n >= 4)) { n = 4; warnings.push('undulations n coerced to a minimum of 4'); }
+
+  // effective permittivity: microstrip (grounded) vs interface strip (ungrounded)
+  const eeff = grounded
+    ? (er + 1) / 2 + (er - 1) / 2 * Math.pow(1 + 12 * h / w, -0.5)
+    : (er > 1 ? (er + 1) / 2 : 1);
+  const lam0 = C_MM_PER_NS / fGHz;
+  const lamg = lam0 / Math.sqrt(eeff);
+
+  const G = serpShapeFactor(n, a, s);
+  const R = lamg / G;                     // 1λ loop: R·G = λg
+  const A = a * R, S = s * R;
+  const outerR = R + A;
+  const footprintD = 2 * outerR + w;
+  const meander = G / (2 * Math.PI);
+  const plainLoopD = lamg / Math.PI;
+  const miniaturize = plainLoopD / footprintD;
+  const Rrad = grounded ? null : 100;
+
+  if (grounded) warnings.push('full ground ~h behind the loop suppresses radiation; grounded loop behaves as a resonator, not an efficient 1λ radiator');
+
+  // centerline, broken at t=0 for the feed gap
+  const s0 = serpSpeed(0, n, a, s) * R;
+  const dGap = Math.min(0.6, g / Math.max(s0, 1e-6));
+  if (dGap >= Math.PI / n) warnings.push('feed gap large relative to undulation spacing');
+  const t0 = dGap / 2, t1 = 2 * Math.PI - dGap / 2;
+  const M = Math.max(720, 16 * n);
+  const spine = [];
+  for (let i = 0; i <= M; i++) spine.push(serpPoint(t0 + (t1 - t0) * i / M, R, A, S, n));
+
+  // offset ±w/2 → closed ribbon polygon (the gap makes it a simple strip, no hole)
+  const left = [], right = [];
+  for (let i = 0; i <= M; i++) {
+    const p = spine[i];
+    const b = spine[Math.min(M, i + 1)], q = spine[Math.max(0, i - 1)];
+    let tx = b[0] - q[0], ty = b[1] - q[1];
+    const len = Math.hypot(tx, ty) || 1; tx /= len; ty /= len;
+    const nx = -ty, ny = tx;
+    left.push([p[0] + nx * w / 2, p[1] + ny * w / 2]);
+    right.push([p[0] - nx * w / 2, p[1] - ny * w / 2]);
+  }
+  // coarse self-overlap check: non-adjacent centerline points closer than w
+  const stepc = Math.max(1, Math.floor((M + 1) / 160));
+  const sep = Math.max(1, Math.floor((M + 1) / (2 * n)));   // skip same-strand neighbors (< half an undulation apart)
+  let minSep = Infinity;
+  for (let i = 0; i <= M; i += stepc)
+    for (let j = i + sep; j <= M; j += stepc) {
+      if (j - i > M - sep) continue;   // skip the two ribbon ends straddling the feed gap (~g apart, not an overlap)
+      const dd = Math.hypot(spine[i][0] - spine[j][0], spine[i][1] - spine[j][1]);
+      if (dd < minSep) minSep = dd;
+    }
+  if (minSep < w) warnings.push('trace may self-overlap — reduce trace width or undulations');
+
+  const outline = left.concat(right.reverse());
+
+  const metrics = { R, A, S, outerR, footprintD, Lpath: R * G, G, meander,
+    eeff, lamg, plainLoopD, miniaturize, Rrad, n, grounded, feedGap: g };
+
+  const span = footprintD + 6 * h;
+  const tg = t;   // ground copper reuses the conductor thickness
+  const geometry = [];
+  geometry.push({ shape: 'trace', material: 'pec', outline, center: [0, 0, t / 2], thickness: t });
+  if (er > 1) geometry.push({ shape: 'box', material: 'substrate', center: [0, 0, -h / 2], size: { x: span, y: span, z: h } });
+  if (grounded) geometry.push({ shape: 'box', material: 'pec', center: [0, 0, -h - tg / 2], size: { x: span, y: span, z: tg } });
+  geometry.push({ shape: 'feed', material: 'feed', p1: [spine[0][0], spine[0][1], 0], p2: [spine[M][0], spine[M][1], 0], impedance: Zin });
+
+  return { inputs: { ...d }, metrics, warnings, geometry };
+}
+
+// ---------------------------------------------------------------------------
 // Dispatcher + degradation
 // ---------------------------------------------------------------------------
 export const TYPES = [
@@ -641,6 +755,7 @@ export const TYPES = [
   { key: 'annular', label: 'Annular Ring Patch' },
   { key: 'cp', label: 'CP Circular Patch' },
   { key: 'uwb', label: 'UWB Disc Monopole' },
+  { key: 'serp', label: 'Serpentine Loop' },
 ];
 
 function sanitizeNum(o, ctx) {
@@ -665,7 +780,7 @@ function sanitizeResult(r) {
   return r;
 }
 
-const SUBSTRATE_TYPES = new Set(['rect', 'disk', 'annular', 'cp']);
+const SUBSTRATE_TYPES = new Set(['rect', 'disk', 'annular', 'cp', 'serp']);
 
 export function synthesize(type, design) {
   const fail = (msg) => ({ inputs: { ...design }, metrics: {}, warnings: [msg], geometry: [] });
@@ -685,6 +800,7 @@ export function synthesize(type, design) {
       case 'annular': r = annularRing(design); break;
       case 'cp': r = cpCircular(design); break;
       case 'uwb': r = discMonopoleUWB(design); break;
+      case 'serp': r = serpentineLoop(design); break;
       default:
         return { inputs: { ...design }, metrics: {}, warnings: ['unknown antenna type: ' + type], geometry: [] };
     }
@@ -764,6 +880,28 @@ function vbaRotateZ(comp, name, angleDeg) {
     '  .Transform "Shape", "Rotate"',
     'End With',
   ].join('\n');
+}
+
+function vbaExtrudePolygon(name, comp, material, outline, z, height) {
+  const lines = [
+    'With Extrude',
+    '  .Reset',
+    `  .Name "${name}"`,
+    `  .Component "${comp}"`,
+    `  .Material "${mat(material)}"`,
+    '  .Mode "Pointlist"',
+    `  .Height ${vn(height)}`,
+    '  .Twist 0.0',
+    '  .Taper 0.0',
+    `  .Origin 0, 0, ${vn(z)}`,
+    '  .Uvector 1, 0, 0',
+    '  .Vvector 0, 1, 0',
+  ];
+  (outline || []).forEach((p, i) => {
+    lines.push(`  ${i === 0 ? '.Point' : '.LineTo'} ${vn(p[0])}, ${vn(p[1])}`);
+  });
+  lines.push('  .Create', 'End With');
+  return lines.join('\n');
 }
 
 function vbaDiscretePort(p, n) {
@@ -1059,6 +1197,8 @@ export function buildVba(result, design) {
         if (rot) body.push(rot);
         body.push(vbaSubtract(comp, `seg_${i}`, name));
       }
+    } else if (p.shape === 'trace') {
+      body.push(vbaExtrudePolygon(`trace_${i}`, comp, p.material, p.outline, num(p.center[2]) - num(p.thickness) / 2, p.thickness));
     } else if (p.shape === 'feed') {
       portN += 1;
       body.push(vbaDiscretePort(p, portN));

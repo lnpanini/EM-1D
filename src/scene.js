@@ -68,6 +68,8 @@ export function geometryToMeshSpecs(geometry) {
       specs.push({ kind: 'ring', rInner: p.rInner, rOuter: p.rOuter, pos: [...p.center], ...style });
     } else if (p.shape === 'segment') {
       specs.push({ kind: 'shape', outline: segmentOutline(p), pos: [...p.center], ...style });
+    } else if (p.shape === 'trace') {
+      specs.push({ kind: 'shape', outline: p.outline, pos: [...p.center], ...style });
     } else if (p.shape === 'feed') {
       specs.push({ kind: 'line', p1: [...p.p1], p2: [...p.p2], color: MAT_FEED });
     }

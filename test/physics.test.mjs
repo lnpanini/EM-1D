@@ -161,7 +161,7 @@ test('UWB disc monopole', () => {
 // ---------------------------------------------------------------------------
 // Task 9: synthesize dispatcher + buildVba
 // ---------------------------------------------------------------------------
-const ALL = ['rect', 'dipole', 'monopole', 'disk', 'annular', 'cp', 'uwb'];
+const ALL = ['rect', 'dipole', 'monopole', 'disk', 'annular', 'cp', 'uwb', 'serp'];
 
 test('synthesize all types robust', () => {
   for (const t of ALL) {
@@ -187,8 +187,8 @@ test('synthesize blank freq degrades', () => {
   assert.doesNotMatch(vba, /NaN|Infinity|undefined/);
 });
 
-test('TYPES exports 7 entries', () => {
-  assert.equal(P.TYPES.length, 7);
+test('TYPES exports 8 entries', () => {
+  assert.equal(P.TYPES.length, 8);
   for (const t of P.TYPES) { assert.ok(t.key); assert.ok(t.label); }
 });
 
@@ -228,4 +228,107 @@ test('buildVba uses CST built-in PEC, never lowercase pec', () => {
     assert.doesNotMatch(vba, /\.Material "pec"/, `${t} must not emit lowercase pec`);
     assert.match(vba, /"PEC"/, `${t} should reference built-in PEC`);
   }
+});
+
+// ---------------------------------------------------------------------------
+// Task 8: serpentine loop
+// ---------------------------------------------------------------------------
+test('serpentine shape factor: plain circle = 2π; kink adds length', () => {
+  close(P.serpShapeFactor(10, 0, 0), 2 * Math.PI, 1e-4);
+  close(P.serpShapeFactor(25, 0.2, 0.05), 25.2668, 1e-3);
+  close(P.serpShapeFactor(25, 0.2, 0), 21.4111, 1e-3);
+});
+
+test('serpentine loop: grounded FR-4 default sizing', () => {
+  const r = P.serpentineLoop({ frequencyGHz: 2.45, undulations: 25, ampRatio: 0.20, serpRatio: 0.05,
+    traceWidthMm: 1.0, substrateEr: 4.4, substrateHeightMm: 1.6, feedGapMm: 1.0, portImpedance: 50, groundPlane: 'Full' });
+  close(r.metrics.eeff, 3.0782, 1e-3);
+  close(r.metrics.R, 2.7603, 1e-2);
+  close(r.metrics.footprintD, 7.6247, 2e-2);
+  close(r.metrics.meander, 4.0213, 1e-2);
+  close(r.metrics.Lpath, r.metrics.lamg, 1e-6);   // 1λ solve self-check
+  assert.equal(r.metrics.Rrad, null);              // grounded → radiation estimate withheld
+});
+
+test('serpentine loop: no-ground and air re-size larger', () => {
+  const base = { frequencyGHz: 2.45, undulations: 25, ampRatio: 0.20, serpRatio: 0.05,
+    traceWidthMm: 1.0, substrateEr: 4.4, substrateHeightMm: 1.6, feedGapMm: 1.0, portImpedance: 50 };
+  const none = P.serpentineLoop({ ...base, groundPlane: 'None' });
+  close(none.metrics.eeff, 2.70, 1e-3);
+  close(none.metrics.R, 2.9473, 1e-2);
+  close(none.metrics.footprintD, 8.0735, 2e-2);
+  assert.equal(none.metrics.Rrad, 100);
+  const air = P.serpentineLoop({ ...base, substrateEr: 1, groundPlane: 'None' });
+  close(air.metrics.eeff, 1, 1e-9);
+  close(air.metrics.R, 4.8429, 1e-2);
+});
+
+test('serpentine loop geometry: trace + feed, substrate/ground per config', () => {
+  const full = P.serpentineLoop({ frequencyGHz: 2.45, undulations: 25, ampRatio: 0.20, serpRatio: 0.05,
+    traceWidthMm: 1.0, substrateEr: 4.4, substrateHeightMm: 1.6, feedGapMm: 1, portImpedance: 50, groundPlane: 'Full' });
+  const shapes = full.geometry.map((p) => p.shape);
+  assert.equal(shapes.filter((k) => k === 'trace').length, 1);
+  assert.ok(full.geometry.some((p) => p.shape === 'feed'));
+  assert.ok(full.geometry.some((p) => p.material === 'substrate'));
+  assert.ok(full.geometry.some((p) => p.shape === 'box' && p.material === 'pec')); // ground
+  const trace = full.geometry.find((p) => p.shape === 'trace');
+  assert.ok(trace.outline.length >= 1440 && trace.outline.length % 2 === 0);
+  for (const pt of trace.outline) assert.ok(Number.isFinite(pt[0]) && Number.isFinite(pt[1]));
+  const none = P.serpentineLoop({ frequencyGHz: 2.45, undulations: 25, ampRatio: 0.20, serpRatio: 0.05,
+    traceWidthMm: 1.0, substrateEr: 1, substrateHeightMm: 1.6, feedGapMm: 1, portImpedance: 50, groundPlane: 'None' });
+  assert.ok(!none.geometry.some((p) => p.material === 'substrate')); // air → no dielectric slab
+  assert.ok(!none.geometry.some((p) => p.shape === 'box' && p.material === 'pec')); // no ground
+});
+
+test('serpentine loop: buildable default (n=12) is clean; dense n self-overlaps', () => {
+  const mk = (n) => P.serpentineLoop({ frequencyGHz: 2.45, undulations: n, ampRatio: 0.20, serpRatio: 0.05,
+    traceWidthMm: 1.0, substrateEr: 4.4, substrateHeightMm: 1.6, feedGapMm: 1, portImpedance: 50, groundPlane: 'Full' });
+  assert.ok(!mk(12).warnings.some((w) => /self-overlap/.test(w)), 'n=12 default does not self-overlap');
+  assert.ok(mk(25).warnings.some((w) => /self-overlap/.test(w)), 'n=25 self-overlaps at 2.45 GHz');
+  assert.ok(mk(14).warnings.some((w) => /self-overlap/.test(w)), 'n=14 self-overlaps (heuristic checks closest approach)');
+});
+
+test('serpentine loop: feed gap smaller than trace width is not a self-overlap; trace sits at mid-plane', () => {
+  const r = P.serpentineLoop({ frequencyGHz: 2.45, undulations: 12, ampRatio: 0.20, serpRatio: 0.05,
+    traceWidthMm: 1.0, substrateEr: 4.4, substrateHeightMm: 1.6, feedGapMm: 0.5, portImpedance: 50, groundPlane: 'Full' });
+  assert.ok(!r.warnings.some((w) => /self-overlap/.test(w)), 'narrow feed gap must not read as self-overlap');
+  const trace = r.geometry.find((p) => p.shape === 'trace');
+  close(trace.center[2], trace.thickness / 2, 1e-12);   // conductor mid-plane
+  // VBA still extrudes from z=0 (origin = center[2] - thickness/2)
+  const vba = P.buildVba(r, { type: 'serp', frequencyGHz: 2.45, substrateEr: 4.4, lossTangent: 0.02 });
+  assert.match(vba, /\.Origin 0, 0, 0/);
+});
+
+// ---------------------------------------------------------------------------
+// Task 2: register serp in dispatcher
+// ---------------------------------------------------------------------------
+test('serp is registered in TYPES', () => {
+  assert.ok(P.TYPES.some((t) => t.key === 'serp' && /serpentine/i.test(t.label)));
+});
+
+test('serpentine loop: synthesize + graceful degradation', () => {
+  const good = P.synthesize('serp', { type: 'serp', frequencyGHz: 2.45, undulations: 25, ampRatio: 0.20,
+    serpRatio: 0.05, traceWidthMm: 1.0, substrateEr: 4.4, substrateHeightMm: 1.6, feedGapMm: 1, portImpedance: 50, groundPlane: 'Full' });
+  assert.ok(good.geometry.length >= 3);
+  for (const k in good.metrics) { const v = good.metrics[k]; if (typeof v === 'number') assert.ok(Number.isFinite(v), k); }
+  // n < 4 → coerced with a warning, still finite geometry
+  const bad = P.synthesize('serp', { type: 'serp', frequencyGHz: 2.45, undulations: 1, ampRatio: 0.20,
+    serpRatio: 0.05, traceWidthMm: 1.0, substrateEr: 4.4, substrateHeightMm: 1.6, feedGapMm: 1, portImpedance: 50 });
+  assert.ok(bad.geometry.length >= 1);
+  assert.ok(bad.warnings.some((w) => /coerced/.test(w)), 'n<4 coercion warning present');
+  // missing frequency → clean empty result
+  const nofreq = P.synthesize('serp', { type: 'serp', undulations: 25, ampRatio: 0.2, serpRatio: 0.05, substrateEr: 4.4, substrateHeightMm: 1.6 });
+  assert.equal(nofreq.geometry.length, 0);
+});
+
+test('serpentine loop VBA: extruded polygon + port + substrate', () => {
+  const design = { type: 'serp', frequencyGHz: 2.45, undulations: 25, ampRatio: 0.20, serpRatio: 0.05,
+    traceWidthMm: 1.0, substrateEr: 4.4, substrateHeightMm: 1.6, lossTangent: 0.02, feedGapMm: 1, portImpedance: 50, groundPlane: 'Full' };
+  const r = P.synthesize('serp', design);
+  const vba = P.buildVba(r, design);
+  assert.match(vba, /With Extrude/);
+  assert.match(vba, /\.Mode "Pointlist"/);
+  assert.match(vba, /With DiscretePort/);
+  assert.match(vba, /\.Name "substrate"/);          // grounded FR-4 emits the dielectric material
+  assert.doesNotMatch(vba, /NaN|Infinity|undefined/);
 });

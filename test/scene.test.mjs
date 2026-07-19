@@ -9,10 +9,11 @@ const base = {
   lossTangent: 0.02, conductorThicknessMm: 0.035, wireRadiusMm: 0.75,
   groundLengthMm: 90, groundWidthMm: 90, feedGapMm: 1, portImpedance: 50,
   ringRatio: 2, polarization: 'RHCP',
+  undulations: 25, ampRatio: 0.20, serpRatio: 0.05, traceWidthMm: 1.0, groundPlane: 'Full',
 };
 
 test('every type maps to finite, non-empty mesh specs', () => {
-  for (const t of ['rect', 'dipole', 'monopole', 'disk', 'annular', 'cp', 'uwb']) {
+  for (const t of ['rect', 'dipole', 'monopole', 'disk', 'annular', 'cp', 'uwb', 'serp']) {
     const r = synthesize(t, { ...base, type: t });
     const specs = geometryToMeshSpecs(r.geometry);
     assert.ok(specs.length > 0, `${t}: specs present`);
@@ -52,4 +53,12 @@ test('sceneBounds yields a finite box for a real design', () => {
   const b = sceneBounds(geometryToMeshSpecs(synthesize('disk', { ...base, type: 'disk' }).geometry));
   assert.ok(b && Number.isFinite(b.size) && b.size > 0);
   for (const v of [...b.min, ...b.max, ...b.center]) assert.ok(Number.isFinite(v));
+});
+
+test('serpentine loop maps to a filled shape ribbon', () => {
+  const specs = geometryToMeshSpecs(synthesize('serp', { ...base, type: 'serp' }).geometry);
+  const shape = specs.find((s) => s.kind === 'shape');
+  assert.ok(shape, 'serp produces a filled shape');
+  assert.ok(shape.outline.length > 1000, 'ribbon outline is dense');
+  assert.equal(shape.color, 0xbfc7d0);   // steel conductor
 });
