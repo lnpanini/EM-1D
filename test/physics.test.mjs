@@ -264,7 +264,8 @@ test('serpentine loop: synthesize + graceful degradation', () => {
   // n < 4 → coerced with a warning, still finite geometry
   const bad = P.synthesize('serp', { type: 'serp', frequencyGHz: 2.45, undulations: 1, ampRatio: 0.20,
     serpRatio: 0.05, traceWidthMm: 1.0, substrateEr: 4.4, substrateHeightMm: 1.6, feedGapMm: 1, portImpedance: 50 });
-  assert.ok(bad.geometry.length >= 1 && bad.warnings.length >= 1);
+  assert.ok(bad.geometry.length >= 1);
+  assert.ok(bad.warnings.some((w) => /coerced/.test(w)), 'n<4 coercion warning present');
   // missing frequency → clean empty result
   const nofreq = P.synthesize('serp', { type: 'serp', undulations: 25, ampRatio: 0.2, serpRatio: 0.05, substrateEr: 4.4, substrateHeightMm: 1.6 });
   assert.equal(nofreq.geometry.length, 0);
