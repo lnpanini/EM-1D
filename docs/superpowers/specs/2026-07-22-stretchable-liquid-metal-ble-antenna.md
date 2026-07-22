@@ -18,8 +18,9 @@ simulation. Headline results, free space:
 |---|---|---|
 | Target band | 2.400–2.4835 GHz (BLE) | requirement |
 | Resonance (tuned) | **2.44 GHz, S₁₁ = −24 dB** | CST FD, tetrahedral |
-| Radiation efficiency | **≈ 90 % (−0.47 dB)** | CST far-field |
-| Total efficiency | **≈ 81 % (−0.9 dB)**, →~88 % when centred | CST far-field |
+| Radiation efficiency (free space) | **≈ 90 % (−0.47 dB)** | CST far-field |
+| Total efficiency (free space) | **≈ 81 % (−0.9 dB)**, →~88 % when centred | CST far-field |
+| Efficiency **on skin** (bare loop) | **~1–6 % total** — needs AMC backing for more (§5.6) | CST phantom |
 | Footprint | ≈ 23 mm (⌀), `serp_R ≈ 11.5 mm` | CST-tuned |
 | Conductor | EGaIn, ⌀0.5 mm channel | design |
 | Substrate | PDMS (εr 2.68, tanδ 0.02), ≤ 3 mm total | fabrication constraint |
@@ -246,15 +247,70 @@ The question a deep S₁₁ *cannot* answer: does it radiate, or is it a matched
 For a heavily-meandered (factor 2.14) liquid-metal loop in lossy PDMS, ~90 % radiation efficiency is a
 genuinely strong result — the meandering, EGaIn resistivity, and substrate loss did **not** kill it.
 
-### 5.5 On-body (skin) — in progress
+### 5.5 On-body (skin) — measured
 
-Body-worn is the make-or-break test. A 3-layer skin/fat/muscle phantom (IT'IS values at 2.45 GHz) is
-added under the PDMS via an add-on macro. Expected: resonance drops (skin εr ≈ 38 loads the loop —
-re-tune `serp_R` down) and efficiency falls. **Topology advantage:** a loop is *magnetic-dominant* and
-the body is non-magnetic (μᵣ = 1, perturbs E-fields far more than H) — loops are inherently more
-body-robust than patches/dipoles. Mitigations if efficiency is poor: a 1–2 mm `body_gap`
-(clothing/thicker PDMS back) recovers a large fraction, since near-field coupling into skin falls off
-fast with distance. SAR to follow before any human trial.
+A 3-layer skin/fat/muscle phantom (IT'IS values at 2.45 GHz) was added under the PDMS via an add-on
+macro (`add-tissue-phantom.vba`). Findings:
+
+- **Resonance drops hard.** Direct contact pulled the fundamental from 2.44 GHz to ~1.35 GHz — skin
+  (εr ≈ 38) raised ε_eff from ~1 toward ~3.3. On-body the antenna re-tunes *smaller* (`serp_R` down);
+  the tissue's own modes also complicate the S₁₁, adding dips (a loop is multi-resonant anyway —
+  perimeter = nλg — so a whole harmonic ladder appears, richer with tissue present).
+- **Efficiency collapses.** At resonance on skin: **radiation efficiency ~5–8 %**, **total efficiency
+  ~1–6 %** — down from 90 % / 81 % free space.
+- **An air standoff barely helps.** A `body_gap` sweep 0→4 mm moved radiation efficiency only to ~8 %.
+  Two reasons: (1) a loop radiates *both* ways, and the −z lobe goes straight into tissue; (2) a 4 mm
+  gap is small next to a ~20 mm antenna, so tissue stays deep in the reactive near field. Decoupling by
+  air alone needs a ~10–20 mm standoff — not wearable.
+
+**Correction to an earlier claim:** the "loops are body-robust because magnetic-dominant" argument
+holds for *electrically small* loops (uniform current, pure magnetic dipole). A **1λ resonant loop is
+not small** — it has full standing-wave E-field structure that couples into lossy skin. So the loop's
+body-robustness advantage is real but modest, not decisive.
+
+**Verdict:** the bare loop is a poor direct-contact radiator (~1–6 % total). Whether that matters
+depends entirely on required range — BLE closes short links (≤ ~2 m to a personal device) at a few
+percent, so the bare loop may be shippable for that use case. Longer range needs isolation from the
+body (§5.6). SAR to follow before any human trial.
+
+### 5.6 AMC backing — the isolation option
+
+The established fix for a body-worn antenna is an **AMC (Artificial Magnetic Conductor) / EBG** layer
+between the radiator and the body — *not* a plain metal ground.
+
+- **Why not a plain ground:** a PEC reflects 180° out of phase and *cancels* a loop sitting close above
+  it (the dead grounded-loop of §3). An AMC is engineered so its **reflection phase = 0° at 2.44 GHz**,
+  so the back-lobe reflects *in phase* and adds to the forward radiation, while the ground plane
+  underneath shields the body. Typical published result: **40–70 %** on-body efficiency.
+- **Dimensions (2.44 GHz, PDMS):** unit cell ≈ 15–20 mm (low εr → large cells); a 3×3 array is
+  **~50–60 mm** — i.e. the AMC is **~2.5–3× the antenna footprint**, the main drawback. Stack ≈ 5 mm
+  thick (antenna + spacer + AMC/ground) vs ~2–3 mm bare.
+- **Design flow:** a unit-cell reflection-phase simulation (`amc-unit-cell.vba` + manual Floquet-port
+  setup) — sweep the patch size until S₁₁ phase crosses 0° at 2.44 GHz, tile a 3×3 array, place the
+  loop ~1–2 mm above, co-simulate on the phantom. ~1–2 weeks of CST work.
+- **Fabrication cost (the real obstacle for liquid metal):** every conductor is a cast-and-fill cavity,
+  so the AMC turns *one channel* into *one channel + nine patch cavities + a continuous ground-plane
+  sheet*. A large flat EGaIn sheet is the hardest element in this process — it beads and migrates under
+  stretch. Roughly triples the molding complexity; the ground sheet is the highest-risk part.
+
+**Lighter variants (fabrication-first, worth a CST comparison):**
+
+| Backing | Isolation | Est. on-body eff | LM fabrication |
+|---|---|---|---|
+| None (bare loop) | none | ~1–6 % total | 1 channel (baseline) |
+| Full 3×3 AMC + solid ground | full | 40–70 % | 9 patches + solid sheet (hardest) |
+| Sparse 2×2 AMC + solid ground | partial | ~30–50 % (est.) | 4 patches + sheet |
+| **Mesh/grid ground** (patches over a lattice, not a sheet) | partial shield | ~15–35 % (est.) | grid *lines* cast far easier than a sheet |
+
+The **mesh-ground** variant is the interesting fabrication compromise: thin liquid-metal grid lines
+don't bead the way a solid sheet does, at the cost of some field leakage through the holes (lower
+isolation → partial efficiency recovery). The efficiency estimates above are *hypotheses to test in
+CST*, not measured.
+
+**Recommendation:** for a first proof-of-concept, ship the bare loop for short-range BLE and record the
+AMC as future work; commit to the AMC (or mesh variant) only when a specific range requirement demands
+it. The free-space result (2.44 GHz, 90 % efficiency, strain-stable) is a complete, publishable outcome
+on its own.
 
 ---
 
@@ -294,7 +350,8 @@ All in `src/physics.js` unless noted:
 
 ## 8. Open questions / next steps
 
-1. **On-body efficiency & SAR** — the current front. Number pending.
+1. **On-body isolation** — bare loop is ~1–6 % total on skin (§5.5). Decide by range requirement:
+   ship bare for short-range BLE, or design an AMC / mesh-ground backing (§5.6). SAR still pending.
 2. **ε_eff vs encapsulation thickness** — a small parametric study (PDMS 0.5→3 mm) would give a
    size-vs-thickness curve worth a figure in the report.
 3. **z-wave EM confirmation** — restore the wave at the tuned size and confirm resonance/efficiency
