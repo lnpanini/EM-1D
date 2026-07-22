@@ -51,9 +51,31 @@ function meshFromSpec(s) {
     shape.moveTo(o[0][0], o[0][1]);
     for (let i = 1; i < o.length; i++) shape.lineTo(o[i][0], o[i][1]);
     shape.closePath();
+    // Holes make the shape an annulus (a closed trace loop).
+    for (const hole of s.holes || []) {
+      if (!hole.length) continue;
+      const path = new THREE.Path();
+      path.moveTo(hole[0][0], hole[0][1]);
+      for (let i = 1; i < hole.length; i++) path.lineTo(hole[i][0], hole[i][1]);
+      path.closePath();
+      shape.holes.push(path);
+    }
     const g = new THREE.ShapeGeometry(shape);                // x-y plane (z normal)
     const m = new THREE.MeshStandardMaterial({ color: s.color, side: THREE.DoubleSide, metalness: 0.7, roughness: 0.35 });
     const mesh = new THREE.Mesh(g, m); mesh.position.set(...s.pos); return mesh;
+  }
+  if (s.kind === 'tube') {
+    // Embedded channel: sweep a circular section along the 3D centerline. The
+    // path is already dense, so a Catmull-Rom through it is effectively exact.
+    if (!s.path || s.path.length < 2) return null;
+    const pts = s.path.map((p) => new THREE.Vector3(p[0], p[1], p[2]));
+    const curve = new THREE.CatmullRomCurve3(pts, false, 'centripetal');
+    const g = new THREE.TubeGeometry(curve, Math.min(2400, pts.length * 2), s.radius, 12, false);
+    // Keep metalness in line with the other conductors: without an environment
+    // map a near-1 metalness has nothing to reflect and renders almost black,
+    // which is invisible against the dark scene and inside the translucent slab.
+    const m = new THREE.MeshStandardMaterial({ color: s.color, metalness: 0.6, roughness: 0.35 });
+    return new THREE.Mesh(g, m);
   }
   if (s.kind === 'line') {
     const g = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(...s.p1), new THREE.Vector3(...s.p2)]);

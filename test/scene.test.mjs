@@ -56,9 +56,53 @@ test('sceneBounds yields a finite box for a real design', () => {
 });
 
 test('serpentine loop maps to a filled shape ribbon', () => {
+  // base is grounded → closed loop → the trace is an annulus, so the mesh spec
+  // must carry a hole or the 3D view renders a solid disc instead of a loop.
   const specs = geometryToMeshSpecs(synthesize('serp', { ...base, type: 'serp' }).geometry);
   const shape = specs.find((s) => s.kind === 'shape');
   assert.ok(shape, 'serp produces a filled shape');
-  assert.ok(shape.outline.length > 1000, 'ribbon outline is dense');
+  assert.ok(shape.outline.length > 500, 'ribbon outline is dense');
+  assert.ok(shape.holes && shape.holes.length === 1, 'closed loop punches a hole');
+  assert.equal(shape.holes[0].length, shape.outline.length);
   assert.equal(shape.color, 0xbfc7d0);   // steel conductor
+
+  // ungrounded → open ribbon, a simple polygon with no hole
+  const open = geometryToMeshSpecs(synthesize('serp', { ...base, type: 'serp', groundPlane: 'None' }).geometry);
+  const openShape = open.find((s) => s.kind === 'shape');
+  assert.ok(!openShape.holes, 'open ribbon needs no hole');
+});
+
+// Every IR shape has THREE consumers, not two: scene.js (3D), buildVba (export)
+// and drawings.js (the static top/section views). A shape missing from drawings.js
+// throws mid-render -- after the metrics panel updates but BEFORE viewer.update(),
+// so the readouts change while the 3D model silently keeps the previous geometry.
+test('drawings handle every shape the synthesis engines emit', async () => {
+  const { topViewSVG, sectionViewSVG } = await import('../src/drawings.js');
+  const base = {
+    frequencyGHz: 2.45, lowerCutoffGHz: 3.1, substrateEr: 4.4, substrateHeightMm: 1.6,
+    lossTangent: 0.02, conductorThicknessMm: 0.035, wireRadiusMm: 0.75,
+    groundLengthMm: 90, groundWidthMm: 90, feedGapMm: 1, portImpedance: 50,
+    ringRatio: 2, polarization: 'RHCP', undulations: 12, ampRatio: 0.2,
+    serpRatio: 0.05, traceWidthMm: 0.8, groundPlane: 'Full',
+    channelDiaMm: 0.5, zCycles: 48, maxStrainPct: 20,
+  };
+  const cases = [
+    ['rect', {}], ['dipole', {}], ['monopole', {}], ['disk', {}], ['annular', {}],
+    ['cp', {}], ['uwb', {}],
+    ['serp', { conductorForm: 'Etched trace' }],
+    ['serp', { conductorForm: 'Etched trace', groundPlane: 'None' }],
+    ['serp', { conductorForm: 'Embedded channel' }],
+  ];
+  const seen = new Set();
+  for (const [type, over] of cases) {
+    const g = synthesize(type, { ...base, ...over, type }).geometry;
+    for (const p of g) seen.add(p.shape);
+    assert.doesNotThrow(() => topViewSVG(g), `topViewSVG threw for ${type} ${JSON.stringify(over)}`);
+    assert.doesNotThrow(() => sectionViewSVG(g), `sectionViewSVG threw for ${type} ${JSON.stringify(over)}`);
+  }
+  // the conductor must actually appear, not be silently skipped
+  const tubeGeom = synthesize('serp', { ...base, type: 'serp', conductorForm: 'Embedded channel' }).geometry;
+  assert.match(topViewSVG(tubeGeom), /<path/, 'embedded channel must be drawn in the top view');
+  assert.ok(sectionViewSVG(tubeGeom).length > 100, 'embedded channel must appear in section');
+  assert.ok(seen.has('tube') && seen.has('trace'), `exercised shapes: ${[...seen].join(', ')}`);
 });

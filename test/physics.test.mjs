@@ -272,12 +272,53 @@ test('serpentine loop geometry: trace + feed, substrate/ground per config', () =
   assert.ok(full.geometry.some((p) => p.material === 'substrate'));
   assert.ok(full.geometry.some((p) => p.shape === 'box' && p.material === 'pec')); // ground
   const trace = full.geometry.find((p) => p.shape === 'trace');
-  assert.ok(trace.outline.length >= 1440 && trace.outline.length % 2 === 0);
-  for (const pt of trace.outline) assert.ok(Number.isFinite(pt[0]) && Number.isFinite(pt[1]));
+  // grounded → closed loop, so the trace is an annulus: outer outline + inner hole
+  assert.equal(full.metrics.feedType, 'microstrip-edge');
+  assert.ok(trace.inner, 'closed loop carries a hole boundary');
+  assert.equal(trace.outline.length, trace.inner.length, 'both rings sample identically');
+  assert.ok(trace.outline.length >= 720, 'outline stays dense');
+  for (const pt of [...trace.outline, ...trace.inner]) assert.ok(Number.isFinite(pt[0]) && Number.isFinite(pt[1]));
   const none = P.serpentineLoop({ frequencyGHz: 2.45, undulations: 25, ampRatio: 0.20, serpRatio: 0.05,
     traceWidthMm: 1.0, substrateEr: 1, substrateHeightMm: 1.6, feedGapMm: 1, portImpedance: 50, groundPlane: 'None' });
   assert.ok(!none.geometry.some((p) => p.material === 'substrate')); // air → no dielectric slab
   assert.ok(!none.geometry.some((p) => p.shape === 'box' && p.material === 'pec')); // no ground
+  // ungrounded → free-standing loop, delta-gap feed, open ribbon (no hole)
+  assert.equal(none.metrics.feedType, 'delta-gap');
+  const openTrace = none.geometry.find((p) => p.shape === 'trace');
+  assert.ok(!openTrace.inner, 'open ribbon is a simple polygon');
+  assert.ok(openTrace.outline.length >= 1440 && openTrace.outline.length % 2 === 0);
+});
+
+// The ground plane decides the antenna, and therefore the feed: a free-standing
+// loop takes a balanced delta-gap source, but over a ground plane the structure
+// is microstrip and the ground IS the port's return conductor.
+test('feed topology follows the ground plane', () => {
+  const mk = (groundPlane) => P.serpentineLoop({ frequencyGHz: 2.45, undulations: 12, ampRatio: 0.20,
+    serpRatio: 0.05, traceWidthMm: 0.8, substrateEr: 4.4, substrateHeightMm: 1.6, feedGapMm: 1,
+    portImpedance: 50, conductorThicknessMm: 0.035, groundPlane });
+
+  const gnd = mk('Full');
+  assert.equal(gnd.metrics.feedType, 'microstrip-edge');
+  close(gnd.metrics.feedWidth, P.microstripWidth(50, 4.4, 1.6), 1e-12);
+  assert.equal(gnd.metrics.feedGap, 0, 'closed loop has no gap');
+  // the port must straddle trace and ground, not float in the trace plane
+  const port = gnd.geometry.find((p) => p.shape === 'feed');
+  assert.ok(port.p1[2] > 0, 'top terminal on the conductor');
+  assert.ok(port.p2[2] < -1.6, 'bottom terminal on the ground plane');
+  close(port.p1[0], port.p2[0], 1e-12);   // vertical launch at the board edge
+  // a feed line reaches that edge
+  const line = gnd.geometry.find((p) => p.shape === 'box' && p.material === 'pec' && p.size.y < 10);
+  assert.ok(line, 'microstrip feed line present');
+  close(line.center[0] + line.size.x / 2, port.p1[0], 1e-9);
+  // and it starts at x=R, the one point guaranteed to lie on the centreline
+  close(line.center[0] - line.size.x / 2, gnd.metrics.R, 1e-9);
+
+  const air = mk('None');
+  assert.equal(air.metrics.feedType, 'delta-gap');
+  assert.equal(air.metrics.feedWidth, null);
+  const dg = air.geometry.find((p) => p.shape === 'feed');
+  close(dg.p1[2], dg.p2[2], 1e-12);       // both terminals in the conductor plane
+  assert.ok(!air.geometry.some((p) => p.shape === 'box' && p.material === 'pec'), 'no ground, no feed line');
 });
 
 test('serpentine loop: buildable default (n=12) is clean; dense n self-overlaps', () => {
@@ -321,14 +362,362 @@ test('serpentine loop: synthesize + graceful degradation', () => {
   assert.equal(nofreq.geometry.length, 0);
 });
 
+const SERP_DESIGN = { type: 'serp', frequencyGHz: 2.45, undulations: 12, ampRatio: 0.20, serpRatio: 0.05,
+  traceWidthMm: 1.0, substrateEr: 4.4, substrateHeightMm: 1.6, lossTangent: 0.02, conductorThicknessMm: 0.035,
+  feedGapMm: 1, portImpedance: 50, groundPlane: 'Full' };
+
 test('serpentine loop VBA: extruded polygon + port + substrate', () => {
-  const design = { type: 'serp', frequencyGHz: 2.45, undulations: 25, ampRatio: 0.20, serpRatio: 0.05,
-    traceWidthMm: 1.0, substrateEr: 4.4, substrateHeightMm: 1.6, lossTangent: 0.02, feedGapMm: 1, portImpedance: 50, groundPlane: 'Full' };
-  const r = P.synthesize('serp', design);
-  const vba = P.buildVba(r, design);
+  const vba = P.buildVba(P.synthesize('serp', SERP_DESIGN), SERP_DESIGN);
+  // history blocks escape inner quotes VBA-style ("" inside a string literal)
   assert.match(vba, /With Extrude/);
-  assert.match(vba, /\.Mode "Pointlist"/);
+  assert.match(vba, /\.Mode ""Pointlist""/);
   assert.match(vba, /With DiscretePort/);
-  assert.match(vba, /\.Name "substrate"/);          // grounded FR-4 emits the dielectric material
+  assert.match(vba, /\.Name ""Substrate Material""/);   // grounded FR-4 emits the dielectric
+  assert.match(vba, /\.Name ""Ground""/);
   assert.doesNotMatch(vba, /NaN|Infinity|undefined/);
+});
+
+// ---------------------------------------------------------------------------
+// CST macro-validity guards
+// ---------------------------------------------------------------------------
+const EXPORT_TYPES = [
+  ['rect', {}], ['dipole', {}], ['monopole', {}], ['disk', {}], ['annular', {}],
+  ['cp', {}], ['uwb', {}], ['serp', {}],
+];
+const EXPORT_BASE = {
+  frequencyGHz: 2.4, lowerCutoffGHz: 3.1, substrateEr: 4.4, substrateHeightMm: 1.6,
+  lossTangent: 0.02, conductorThicknessMm: 0.035, wireRadiusMm: 0.75,
+  groundLengthMm: 90, groundWidthMm: 90, feedGapMm: 1, portImpedance: 50,
+  ringRatio: 2, polarization: 'RHCP', undulations: 12, ampRatio: 0.2,
+  serpRatio: 0.05, traceWidthMm: 1.0, groundPlane: 'Full',
+};
+
+// CST rejects the legacy Point1/Point2/UsePickedPoints API alongside SetP1/SetP2
+// with "(&H8000ffff) do not mix old ... with new ... commands", aborting the macro
+// mid-run — which silently leaves the model without its port.
+test('no export mixes the legacy and modern DiscretePort point APIs', () => {
+  for (const [t, over] of EXPORT_TYPES) {
+    const d = { ...EXPORT_BASE, ...over, type: t };
+    const vba = P.buildVba(P.synthesize(t, d), d);
+    if (!/DiscretePort/.test(vba)) continue;
+    assert.doesNotMatch(vba, /UsePickedPoints/, `${t} must not emit the legacy UsePickedPoints`);
+    assert.doesNotMatch(vba, /\.Point1\b|\.Point2\b/, `${t} must not emit the legacy Point1/Point2`);
+    assert.match(vba, /\.SetP1 /, `${t} should place the port with SetP1/SetP2`);
+  }
+});
+
+// In CST the history list *is* the model: a bare Brick.Create leaves an orphan
+// solid that no parametric rebuild can touch.
+test('every export routes its geometry through AddToHistory', () => {
+  for (const [t, over] of EXPORT_TYPES) {
+    const d = { ...EXPORT_BASE, ...over, type: t };
+    const vba = P.buildVba(P.synthesize(t, d), d);
+    assert.match(vba, /AddToHistory/, `${t} should record geometry in the history list`);
+    // no naked construction call outside a history block
+    assert.doesNotMatch(vba, /^\s*With Brick\s*$/m, `${t} builds bricks outside AddToHistory`);
+    assert.doesNotMatch(vba, /^\s*With Cylinder\s*$/m, `${t} builds cylinders outside AddToHistory`);
+    assert.doesNotMatch(vba, /^\s*With DiscretePort\s*$/m, `${t} builds ports outside AddToHistory`);
+  }
+});
+
+// VBA caps line-continuations per statement (24 in VBA6); longer blocks must use
+// the `h = h & ...` accumulator form instead of `& vbLf & _`.
+test('no AddToHistory statement exceeds the VBA line-continuation limit', () => {
+  for (const [t, over] of EXPORT_TYPES) {
+    const d = { ...EXPORT_BASE, ...over, type: t };
+    const vba = P.buildVba(P.synthesize(t, d), d);
+    let run = 0;
+    for (const line of vba.split('\n')) {
+      run = /&\s*_\s*$/.test(line) ? run + 1 : 0;
+      assert.ok(run <= 24, `${t}: ${run} continuations in one statement exceeds the VBA limit`);
+    }
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Parametric serpentine export
+// ---------------------------------------------------------------------------
+test('serpentine export drives the trace from named CST parameters', () => {
+  const vba = P.buildVba(P.synthesize('serp', SERP_DESIGN), SERP_DESIGN);
+  // SERP_DESIGN is grounded, so it is edge-fed: feed_w/feed_len, not feed_gap
+  for (const p of ['serp_R', 'amp_ratio', 'serp_ratio', 'serp_n', 'trace_w', 'feed_w', 'feed_len', 'met_t', 'sub_h'])
+    assert.match(vba, new RegExp(`StoreDoubleParameter "${p}"`), `${p} must be a named parameter`);
+  const air = { ...SERP_DESIGN, groundPlane: 'None' };
+  assert.match(P.buildVba(P.synthesize('serp', air), air), /StoreDoubleParameter "feed_gap"/,
+    'the delta-gap variant still parameterises its gap');
+  for (const p of ['serp_A', 'serp_S', 'outer_r', 'sub_x'])
+    assert.match(vba, new RegExp(`StoreParameter\\s+"${p}"`), `${p} must be a derived expression`);
+  // the trace block re-reads the drivers rather than baking in a point list
+  for (const p of ['serp_R', 'amp_ratio', 'serp_ratio', 'serp_n', 'trace_w'])
+    assert.match(vba, new RegExp(`RestoreDoubleParameter\\(""${p}""\\)`), `${p} must be read back at rebuild`);
+  // board bricks reference parameters, never literal extents
+  assert.match(vba, /\.Xrange ""-sub_x"", ""sub_x""/);
+});
+
+test('serpentine export emits a curve generator, not a frozen point list', () => {
+  const r = P.synthesize('serp', SERP_DESIGN);
+  const vba = P.buildVba(r, SERP_DESIGN);
+  const tr = r.geometry.find((p) => p.shape === 'trace');
+  const pts = tr.outline.length + (tr.inner ? tr.inner.length : 0);
+  assert.ok(pts > 1000, 'IR still carries the dense outline for the 3D view');
+  // ...but the macro must be compact: a loop, not ~1450 literal .LineTo lines
+  // a frozen point list would be ~1450 lines; a generator keeps it in the hundreds
+  assert.ok(vba.split('\n').length < 500, `macro should stay compact, got ${vba.split('\n').length} lines`);
+  assert.match(vba, /For i = 0 To Lst/);
+  assert.match(vba, /\.LineTo lx\(i\), ly\(i\)/);
+  // no literal coordinate ever reaches a LineTo
+  assert.doesNotMatch(vba, /\.LineTo -?\d/);
+  // closed loop → annulus built as outer minus inner, both from the generator
+  assert.match(vba, /\.LineTo rx\(i\), ry\(i\)/);
+  assert.match(vba, /Solid\.Subtract ""component1:Serpentine"", ""component1:SerpHole""/);
+});
+
+test('serpentine parameter defaults track the synthesized design', () => {
+  const lo = P.synthesize('serp', SERP_DESIGN);
+  const hiD = { ...SERP_DESIGN, frequencyGHz: 5.8 };
+  const hi = P.synthesize('serp', hiD);
+  const grab = (vba, name) => Number(new RegExp(`StoreDoubleParameter "${name}", (\\S+)`).exec(vba)[1]);
+  const rLo = grab(P.buildVba(lo, SERP_DESIGN), 'serp_R');
+  const rHi = grab(P.buildVba(hi, hiD), 'serp_R');
+  close(rLo, lo.metrics.R, 1e-9);
+  close(rHi, hi.metrics.R, 1e-9);
+  assert.ok(rHi < rLo, 'a higher f0 must seed a smaller loop radius');
+});
+
+test('serpentine export drops substrate/ground blocks when not configured', () => {
+  const d = { ...SERP_DESIGN, substrateEr: 1, groundPlane: 'None' };
+  const vba = P.buildVba(P.synthesize('serp', d), d);
+  assert.doesNotMatch(vba, /Substrate Material/, 'air design must not define a dielectric');
+  assert.doesNotMatch(vba, /""Ground""/, 'ungrounded design must not build a ground plane');
+  assert.match(vba, /define serpentine trace/, 'the trace is still built');
+});
+
+test('degraded serpentine still emits a well-formed macro', () => {
+  const d = { type: 'serp', undulations: 12, ampRatio: 0.2, serpRatio: 0.05, substrateEr: 4.4, substrateHeightMm: 1.6 };
+  const r = P.synthesize('serp', d);
+  assert.equal(r.geometry.length, 0);
+  const vba = P.buildVba(r, d);
+  assert.match(vba, /Sub Main[\s\S]*End Sub/);
+  assert.doesNotMatch(vba, /NaN|Infinity|undefined/);
+});
+
+// An `open` boundary only absorbs in the far field; flush against the structure
+// it sits in the reactive near field and CST rejects any port within three mesh
+// steps of it ("Distance between discrete port and open boundary is too small").
+test('every export pads the open boundary with vacuum space', () => {
+  for (const [t, over] of EXPORT_TYPES) {
+    const d = { ...EXPORT_BASE, ...over, type: t };
+    const vba = P.buildVba(P.synthesize(t, d), d);
+    if (!/\.Xmin ""?open/.test(vba)) continue;
+    assert.match(vba, /With Background/, `${t} must add background space`);
+    for (const f of ['Xmin', 'Xmax', 'Ymin', 'Ymax', 'Zmin', 'Zmax'])
+      assert.match(vba, new RegExp(`\\.${f}Space`), `${t} missing ${f} padding`);
+    assert.match(vba, /"bg_space"/, `${t} should drive padding from a named parameter`);
+  }
+});
+
+test('boundary padding is about a quarter wavelength', () => {
+  const vba = P.buildVba(P.synthesize('serp', SERP_DESIGN), SERP_DESIGN);
+  // parametric templates express it against f0 rather than baking in a number
+  assert.match(vba, /StoreParameter\s+"bg_space", "299\.792458 \/ f0 \/ 4"/);
+  const d = { ...EXPORT_BASE, type: 'rect' };
+  const gen = P.buildVba(P.synthesize('rect', d), d);
+  const space = Number(/StoreDoubleParameter "bg_space", (\S+)/.exec(gen)[1]);
+  close(space, 299.792458 / (0.7 * 2.4) / 4, 1e-6);
+});
+
+// A 50 Ohm line on thick / low-permittivity substrate can exceed the meander
+// pitch, bridging adjacent strands and shorting out part of the resonant path.
+test('warns when the 50 ohm feed line is wider than the undulation pitch', () => {
+  const mk = (over) => P.serpentineLoop({ frequencyGHz: 2.45, undulations: 12, ampRatio: 0.20,
+    serpRatio: 0.05, traceWidthMm: 0.8, substrateEr: 4.4, substrateHeightMm: 1.6,
+    portImpedance: 50, conductorThicknessMm: 0.035, groundPlane: 'Full', ...over });
+  const hit = /wider than the undulation pitch/;
+
+  const thick = mk({});                       // 1.6 mm FR-4 -> 3.06 mm line vs 2.73 mm pitch
+  assert.ok(thick.metrics.feedWidth > 2 * Math.PI * thick.metrics.R / thick.metrics.n);
+  assert.ok(thick.warnings.some((w) => hit.test(w)), 'should warn on the default FR-4 stack');
+
+  const thin = mk({ substrateHeightMm: 0.2 });  // thinner substrate -> much narrower line
+  assert.ok(thin.metrics.feedWidth < 2 * Math.PI * thin.metrics.R / thin.metrics.n);
+  assert.ok(!thin.warnings.some((w) => hit.test(w)), 'a thin substrate should clear the pitch');
+
+  // never fires for the ungrounded delta-gap variant, which has no feed line
+  assert.ok(!mk({ groundPlane: 'None' }).warnings.some((w) => hit.test(w)));
+});
+
+// CST rejects any parameter whose name shadows a VBA or Python keyword/function:
+// "Invalid parameter name 'space'." — Space() is a VBA builtin. The macro aborts
+// at the StoreParameter line, so nothing downstream is created.
+const VBA_RESERVED = `Abs And Array Asc Atn Call Case CBool CByte CDate CDbl Chr CInt CLng Close Const
+Cos CreateObject CSng CStr CurDir Date Day Dim Dir Do Double Each Else End Environ EOF Eqv Erase Err
+Error Exit Exp False Fix For Format Function Get GoTo Hex Hour If Imp In InStr Int Integer Is IsArray
+IsDate IsEmpty IsNull IsNumeric IsObject Join Kill LBound LCase Left Len Let Like Line Load Loc Lock
+Lof Log Long Loop LTrim Mid Minute MkDir Mod Month MsgBox New Next Not Nothing Now Null Object Oct On
+Open Option Or Print Private Public Put Randomize ReDim Rem Replace Reset Resume Return Right RmDir
+Rnd Round RTrim Second Seek Select Set Sgn Shell Sin Single Space Split Sqr Static Stop Str StrComp
+String Sub Tab Tan Then Time Timer To Trim True Type UBound UCase Unload Until Val VarType Wend While
+With Write Xor Year`.split(/\s+/);
+const PY_RESERVED = `abs all and any as assert ascii async await bin bool break bytes callable chr
+class compile complex continue def del delattr dict dir divmod elif else enumerate eval except exec
+filter finally float for format from frozenset getattr global globals hasattr hash help hex id if
+import in input int is isinstance issubclass iter lambda len list locals map max memoryview min next
+none nonlocal not object oct open or ord pass pow print property raise range repr return reversed
+round set setattr slice sorted staticmethod str sum super try tuple type vars while with yield
+zip`.split(/\s+/);
+const RESERVED = new Set([...VBA_RESERVED, ...PY_RESERVED].map((s) => s.toLowerCase()));
+
+test('no exported parameter name shadows a VBA or Python builtin', () => {
+  for (const [t, over] of EXPORT_TYPES) {
+    const d = { ...EXPORT_BASE, ...over, type: t };
+    const vba = P.buildVba(P.synthesize(t, d), d);
+    const names = [...vba.matchAll(/Store(?:Double)?Parameter\s+"([^"]+)"/g)].map((m) => m[1]);
+    assert.ok(names.length, `${t} should define parameters`);
+    for (const n of names)
+      assert.ok(!RESERVED.has(n.toLowerCase()), `${t}: parameter "${n}" shadows a VBA/Python builtin`);
+  }
+});
+
+// The earlier width check (outline-to-inner distance == trace_w) passed even with
+// the rings swapped, because separation is symmetric. Containment is not: if the
+// hole is the larger ring, CST's Solid.Subtract deletes the solid outright and
+// only reports it one command later, against a different shape name.
+test('closed-loop trace: outline encloses the hole', () => {
+  const signedArea = (p) => {
+    let a = 0;
+    for (let i = 0; i < p.length; i++) { const j = (i + 1) % p.length; a += p[i][0] * p[j][1] - p[j][0] * p[i][1]; }
+    return a / 2;
+  };
+  const r = P.synthesize('serp', SERP_DESIGN);
+  const tr = r.geometry.find((p) => p.shape === 'trace');
+  const outer = Math.abs(signedArea(tr.outline)), hole = Math.abs(signedArea(tr.inner));
+  assert.ok(outer > hole, `outline (${outer.toFixed(2)}) must enclose the hole (${hole.toFixed(2)})`);
+  // the annulus area is the conductor: perimeter x trace width, within a few %
+  const approx = r.metrics.Lpath * SERP_DESIGN.traceWidthMm;
+  assert.ok(Math.abs((outer - hole) - approx) / approx < 0.05,
+    `annulus area ${(outer - hole).toFixed(2)} should be ~L*w = ${approx.toFixed(2)}`);
+  // every hole vertex lies nearer the origin than the mean outer radius
+  const meanR = (p) => p.reduce((s, q) => s + Math.hypot(q[0], q[1]), 0) / p.length;
+  assert.ok(meanR(tr.inner) < meanR(tr.outline), 'hole must sit inside the outline');
+
+  // and the VBA must extrude them in the same order
+  const vba = P.buildVba(r, SERP_DESIGN);
+  const outerAt = vba.indexOf('.Point rx(0), ry(0)');
+  const holeAt = vba.indexOf('.Point lx(0), ly(0)');
+  assert.ok(outerAt > -1 && holeAt > -1, 'both rings extruded');
+  assert.ok(outerAt < holeAt, 'Serpentine (outer) must be created before SerpHole');
+});
+
+// ---------------------------------------------------------------------------
+// Embedded liquid-metal channel (PDMS cast + EGaIn injection)
+// ---------------------------------------------------------------------------
+const LM_DESIGN = { type: 'serp', frequencyGHz: 2.44, substrateEr: 2.68, substrateHeightMm: 1.5,
+  lossTangent: 0.02, ampRatio: 0.20, serpRatio: 0.05, undulations: 12, traceWidthMm: 0.8,
+  conductorThicknessMm: 0.018, portImpedance: 50, conductorForm: 'Embedded channel',
+  channelDiaMm: 0.5, zCycles: 48, maxStrainPct: 20, groundPlane: 'None' };
+
+// A liquid metal has no stiffness, so the channel deforms affinely with the
+// elastomer -- an in-plane serpentine buys nothing. Confirm that directly.
+test('in-plane serpentine gives no strain benefit over a plain circle', () => {
+  const arcRatio = (A_R, S_R) => {
+    const R = 1, n = 12, e = 0.2, nu = 0.5;
+    const L0 = P.serpArc3D(R, A_R * R, S_R * R, n, 0, 48);
+    const L1 = P.serpArc3D(R, A_R * R, S_R * R, n, 0, 48, 1 + e, 1 - nu * e, 1 - nu * e);
+    return L1 / L0 - 1;
+  };
+  const serp = arcRatio(0.20, 0.05), circle = arcRatio(0, 0);
+  close(serp, circle, 2e-4);                       // indistinguishable
+  assert.ok(serp > 0.05, 'both stretch ~5.5% at 20% strain');
+});
+
+// The out-of-plane wave works without any stiffness contrast: Poisson
+// compression of z flattens it, releasing arc length as the perimeter grows.
+test('out-of-plane wave makes the path length strain-invariant', () => {
+  const flat = P.serpZDrift(0, 12, 0.20, 0.05, 48, 0.20);
+  const ratio = P.solveSerpZRatio(12, 0.20, 0.05, 48, 0.20);
+  const tuned = P.serpZDrift(ratio, 12, 0.20, 0.05, 48, 0.20);
+  assert.ok(ratio > 0.15 && ratio < 0.22, `a/lambda should land near 0.18, got ${ratio.toFixed(3)}`);
+  assert.ok(tuned < flat / 20, `tuned drift ${(tuned * 100).toFixed(3)}% vs flat ${(flat * 100).toFixed(2)}%`);
+  assert.ok(tuned * 100 < 1.71, 'tuned design must hold the BLE band');
+});
+
+// The optimum ratio is dimensionless and scale-free, so it must not depend on
+// the wave frequency -- that is what lets you pick mz for printer resolution.
+test('optimal a/lambda is independent of z-wave frequency', () => {
+  const ratios = [24, 36, 48, 72, 96].map((mz) => P.solveSerpZRatio(12, 0.20, 0.05, mz, 0.20));
+  const lo = Math.min(...ratios), hi = Math.max(...ratios);
+  assert.ok(hi - lo < 0.02, `ratios should agree across mz, spread ${(hi - lo).toFixed(4)}`);
+});
+
+test('embedded channel: eeff, sizing and geometry', () => {
+  const r = P.synthesize('serp', LM_DESIGN), m = r.metrics;
+  // fully buried -> the conductor sees dielectric on every side
+  close(m.eeff, 2.68, 1e-12);
+  assert.ok(m.embedded);
+  // the 3D arc length (not the in-plane path) is what must equal lambda_g
+  close(m.Lpath, m.lamg, 1e-2);
+  // the z-wave adds arc length, so R shrinks below the flat solution
+  assert.ok(m.R < m.lamg / m.G, 'R must shrink to absorb the wave arc length');
+  const tube = r.geometry.find((g) => g.shape === 'tube');
+  assert.ok(tube, 'embedded channel is a swept tube, not a flat trace');
+  close(tube.radius, LM_DESIGN.channelDiaMm / 2, 1e-12);
+  assert.ok(tube.path.every((p) => p.length === 3 && p.every(Number.isFinite)));
+  assert.ok(tube.path.some((p) => Math.abs(p[2]) > 0.1), 'path must actually undulate in z');
+  close(Math.max(...tube.path.map((p) => Math.abs(p[2]))), m.zAmp, 1e-3);
+  // slab is centred on z=0 and thick enough to bury the wave envelope
+  const slab = r.geometry.find((g) => g.material === 'substrate');
+  close(slab.center[2], 0, 1e-12);
+  assert.ok(slab.size.z >= LM_DESIGN.channelDiaMm + 2 * m.zAmp, 'slab must enclose the channel');
+  // a loop needs no counterpoise: never emit a ground plane here
+  assert.ok(!r.geometry.some((g) => g.material === 'pec'), 'no ground plane for an embedded loop');
+});
+
+test('embedded channel: EGaIn loss is real but small', () => {
+  const m = P.synthesize('serp', LM_DESIGN).metrics;
+  assert.ok(m.efficiency > 0.9 && m.efficiency < 1, `efficiency ${m.efficiency}`);
+  // the fat channel repays EGaIn's ~17x conductivity penalty
+  const cu = P.synthesize('serp', { ...LM_DESIGN, conductorForm: 'Etched trace', groundPlane: 'None' }).metrics;
+  assert.ok(m.Rloss > 0 && cu.Rloss > 0);
+  assert.ok(m.efficiency > 0.95, 'injected channel should still clear 95%');
+});
+
+test('embedded channel: ground plane is refused, with a reason', () => {
+  const r = P.synthesize('serp', { ...LM_DESIGN, groundPlane: 'Full' });
+  assert.equal(r.metrics.grounded, false);
+  assert.ok(r.warnings.some((w) => /counterpoise/.test(w)), 'must explain why the ground was dropped');
+});
+
+test('embedded channel VBA: 3D curve wire, not an extrusion', () => {
+  const vba = P.buildVba(P.synthesize('serp', LM_DESIGN), LM_DESIGN);
+  assert.match(vba, /StoreDoubleParameter "z_amp"/);
+  assert.match(vba, /StoreDoubleParameter "z_cyc"/);
+  assert.match(vba, /StoreDoubleParameter "chan_r"/);
+  assert.match(vba, /Curve\.NewCurve/);
+  assert.match(vba, /With Polygon3D/);
+  assert.match(vba, /\.Type ""CurveWire""/);
+  assert.match(vba, /\.Name ""EGaIn""/);
+  assert.match(vba, /zamp \* Sin\(mzz \* tt\)/);      // the z wave is generated, not baked
+  assert.doesNotMatch(vba, /With Extrude/, 'a 3D path cannot be an extrusion');
+  assert.doesNotMatch(vba, /NaN|Infinity|undefined/);
+});
+
+// Under `Option Explicit`, CST rejects any macro that uses the `h = h & ...`
+// history accumulator (addToHistoryLong) without a `Dim h As String`. Text-only
+// tests can't compile VBA, so guard the invariant directly: every export that
+// both declares Option Explicit AND uses the accumulator must declare `h`.
+test('every Option Explicit macro that uses the h-accumulator declares Dim h', () => {
+  const base = {
+    frequencyGHz: 2.45, lowerCutoffGHz: 3.1, substrateEr: 4.4, substrateHeightMm: 1.6,
+    lossTangent: 0.02, conductorThicknessMm: 0.035, wireRadiusMm: 0.75,
+    groundLengthMm: 90, groundWidthMm: 90, feedGapMm: 1, portImpedance: 50,
+    ringRatio: 2, ringCount: 2, ringGapMm: 1, innerRingWidthMm: 2.5, feedWidthMm: 1,
+    polarization: 'RHCP', undulations: 12, ampRatio: 0.2, serpRatio: 0.05,
+    traceWidthMm: 0.8, groundPlane: 'Full',
+  };
+  for (const t of ['rect', 'dipole', 'monopole', 'disk', 'annular', 'cp', 'uwb', 'serp']) {
+    const vba = P.buildVba(P.synthesize(t, { ...base, type: t }), { ...base, type: t });
+    if (/Option Explicit/.test(vba) && /\bh = h & /.test(vba)) {
+      assert.match(vba, /Dim h As String/, `${t}: uses the h-accumulator under Option Explicit but never declares Dim h`);
+    }
+  }
 });

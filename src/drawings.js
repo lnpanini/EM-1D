@@ -75,6 +75,17 @@ export function topViewSVG(geometry) {
       const x0 = p.center[0] - p.size.x / 2, y0 = Y(p.center[1]) - p.size.y / 2;
       grow(b, x0, y0); grow(b, x0 + p.size.x, y0 + p.size.y);
       layers[key].push(`<rect x="${r3(x0)}" y="${r3(y0)}" width="${r3(p.size.x)}" height="${r3(p.size.y)}" ${fillFor(p.material)}/>`);
+    } else if (p.shape === 'tube') {
+      // Swept channel: a stroked polyline of width = channel diameter reads the
+      // same as the filled conductor from above.
+      const d = p.path.map((q, i) => `${i ? 'L' : 'M'}${r3(q[0])} ${r3(Y(q[1]))}`).join(' ');
+      for (const q of p.path) { grow(b, q[0] - p.radius, Y(q[1]) - p.radius); grow(b, q[0] + p.radius, Y(q[1]) + p.radius); }
+      layers[key].push(`<path d="${d}" fill="none" stroke="${C_COND}" stroke-width="${r3(2 * p.radius)}" stroke-linecap="round" stroke-linejoin="round"/>`);
+    } else if (p.shape === 'trace') {
+      const ring = (pts) => pts.map((q, i) => `${i ? 'L' : 'M'}${r3(p.center[0] + q[0])} ${r3(Y(p.center[1] + q[1]))}`).join(' ') + ' Z';
+      for (const q of p.outline) grow(b, p.center[0] + q[0], Y(p.center[1] + q[1]));
+      const d = ring(p.outline) + (p.inner ? ' ' + ring(p.inner) : '');
+      layers[key].push(`<path d="${d}" fill-rule="evenodd" ${fillFor(p.material)}/>`);
     } else if (p.shape === 'cylinder' && (p.axis || 'z') === 'z') {
       grow(b, p.center[0] - p.radius, Y(p.center[1]) - p.radius);
       grow(b, p.center[0] + p.radius, Y(p.center[1]) + p.radius);
@@ -124,6 +135,15 @@ export function sectionViewSVG(geometry) {
   let yMin = Infinity, yMax = -Infinity;
   for (const p of shapes) {
     if (p.shape === 'feed' || p.material === 'substrate') continue;
+    // Path-based shapes carry no `center`; take their extent from the path/outline.
+    if (p.shape === 'tube') {
+      for (const q of p.path) { yMin = Math.min(yMin, q[1] - p.radius); yMax = Math.max(yMax, q[1] + p.radius); }
+      continue;
+    }
+    if (p.shape === 'trace') {
+      for (const q of p.outline) { yMin = Math.min(yMin, p.center[1] + q[1]); yMax = Math.max(yMax, p.center[1] + q[1]); }
+      continue;
+    }
     let hy = 0;
     if (p.shape === 'box') hy = p.size.y / 2;
     else if (p.shape === 'ring') hy = p.rOuter;
@@ -144,6 +164,23 @@ export function sectionViewSVG(geometry) {
   const feeds = [];
   for (const p of shapes) {
     if (p.shape === 'feed') { feeds.push(p); continue; }
+    if (p.shape === 'tube') {
+      // Section a swept channel: every path point within the cut plane becomes a
+      // slice of the conductor at its own depth, so the z-undulation shows up.
+      const perp = H === 0 ? 1 : 0;
+      for (const q of p.path) {
+        if (Math.abs(q[perp]) > p.radius) continue;
+        rects.push({ h0: q[H] - p.radius, h1: q[H] + p.radius,
+          z0: q[2] - p.radius, z1: q[2] + p.radius, material: p.material });
+      }
+      continue;
+    }
+    if (p.shape === 'trace') {
+      const hs = p.outline.map((q) => p.center[H] + q[H]);
+      rects.push({ h0: Math.min(...hs), h1: Math.max(...hs),
+        z0: p.center[2] - p.thickness / 2, z1: p.center[2] + p.thickness / 2, material: p.material });
+      continue;
+    }
     const cPerp = p.center[H === 0 ? 1 : 0];
     if (Math.abs(cPerp) > perpHalf(p) + 1e-9) continue;       // shape misses the cut plane
     const c = p.center[H], cz = p.center[2];
