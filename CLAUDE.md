@@ -63,9 +63,66 @@ and `buildVba()` — both switch on `shape`/`kind`:
 - `material` is `'pec'` | `'substrate'` | `'feed'`. In VBA, `'pec'` maps to CST's case-sensitive
   built-in `PEC`; `scene.js` maps materials to Design-System token colors.
 
-If you add a new shape, you must extend **both** `geometryToMeshSpecs`/`sceneBounds` in `scene.js`
-**and** the shape switch in `buildVba()` in `physics.js`, or it will render but not export (or vice
-versa).
+### CST export rules
+
+Non-negotiable constraints the exported macro must satisfy — all three have bitten us:
+
+1. **Everything goes through `AddToHistory`.** In CST the history list *is* the model; a bare
+   `Brick.Create` leaves an orphan solid that no parametric rebuild can touch. Use the `hist()`
+   helper, never `body.push(vbaXxx(...))` directly.
+2. **Never mix the legacy and modern `DiscretePort` point APIs.** `SetP1`/`SetP2` only — adding
+   `UsePickedPoints` or `Point1`/`Point2` raises `(&H8000ffff)` and *aborts the macro mid-run*,
+   which looks like a half-imported model rather than an error.
+3. **Mind the VBA line-continuation limit** (24 per statement). `hist()` switches to the
+   `h = h & ...` accumulator form past `HIST_INLINE_MAX` lines; callers must emit `Dim h As String`.
+
+A result may set `template` to select a **parametric** exporter instead of the generic literal one:
+
+- `'concentric-ring'` → `buildVbaConcentricRing()` — named parameters plus expression-string
+  geometry (`.Xrange "-sub_x", "sub_x"`). Only works when the shape is expressible as CST expressions.
+- `'serpentine'` → `buildVbaSerpentine()` — the trace is a ~1440-point offset ribbon, so the curve
+  *evaluator itself* is emitted as the body of a history block: it calls `RestoreDoubleParameter` and
+  regenerates the polygon on every rebuild. That is what makes `serp_R`/`amp_ratio`/`serp_n` real
+  sweep variables. `test/physics.test.mjs` asserts the VBA math reproduces the JS IR outline, so any
+  change to `serpPoint()`/the offset loop must be mirrored in `serpTraceBlock()`.
+
+### Feed topology follows the ground plane
+
+The serpentine's `groundPlane` toggle selects two *physically different antennas*, and each needs its
+own excitation — `metrics.feedType` records which:
+
+- **`None` → `'delta-gap'`.** A free-standing 1λ loop. The conductor is broken by `feedGapMm` and a
+  balanced discrete source bridges the gap, both terminals in the conductor plane. Open ribbon, so
+  the trace is one simple polygon.
+- **`Full` → `'microstrip-edge'`.** Over a ground plane this is a microstrip resonator, and **the
+  ground is the return conductor** — a port floating in the trace plane has no return path and
+  excites the structure unphysically. So the loop closes galvanically (trace becomes an annulus:
+  `outline` + `inner`), a 50 Ω line from `microstripWidth()` runs to the board edge, and the port is
+  vertical at that edge from the top conductor down to the ground plane.
+
+The feed line starts at `x = serp_R` because `serpPoint(0) === (R, 0)` exactly — the one point
+guaranteed to lie on the centerline for any `n`/`A`/`S`, so the stub always bonds to the conductor.
+
+Watch the pitch conflict: a 50 Ω line on thick or low-εr substrate can be **wider than one undulation
+pitch** (`2πR/n`), shorting across the meander. `serpentineLoop()` warns; do not silence it.
+
+Parametrisation in CST needs **both** halves: named entries via `StoreDoubleParameter`/`StoreParameter`
+*and* history entries that reference those names as quoted expression strings. A literal number in a
+history entry is inert no matter how many parameters are defined alongside it.
+
+A shape has **three** consumers. Adding one means extending all of them:
+
+1. `geometryToMeshSpecs` **and** `sceneBounds` in `scene.js` (→ the 3D viewer, via `viewer.js`)
+2. the shape switch in `buildVba()` in `physics.js` (→ the CST macro)
+3. `topViewSVG` **and** `sectionViewSVG` in `drawings.js` (→ the static drawings)
+
+Missing #3 is the nastiest: `main.js:render()` calls the drawings *before* `viewer.update()`, so an
+unhandled shape throws mid-render and the metrics panel updates while the 3D model silently keeps the
+previous geometry — it looks like the viewer is broken, not the drawings. `test/scene.test.mjs`
+asserts every synthesized shape survives both drawing functions; keep that list current.
+
+Path-based shapes (`trace`, `tube`) have no `center`/`size`, so any code that assumes those fields
+must special-case them before the generic branches.
 
 ### Adding a new antenna type
 

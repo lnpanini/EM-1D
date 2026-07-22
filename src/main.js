@@ -19,6 +19,10 @@ const SUBSTRATE_PRESETS = {
   'Rogers RO4350B': { er: 3.66, tanD: 0.0037, thicknesses: [0.168, 0.254, 0.338, 0.508, 0.762, 1.524], def: 0.762 },
   'Rogers RO4003C': { er: 3.55, tanD: 0.0027, thicknesses: [0.203, 0.305, 0.406, 0.508, 0.813, 1.524], def: 0.813 },
   'RT/Duroid 5880': { er: 2.2,  tanD: 0.0009, thicknesses: [0.127, 0.254, 0.381, 0.508, 0.787, 1.575], def: 0.787 },
+  // Stretchable elastomers for cast / printed liquid-metal antennas. Thicknesses
+  // are slab totals, not laminate cores — the channel is buried inside.
+  'PDMS (Sylgard 184)': { er: 2.68, tanD: 0.02, thicknesses: [0.5, 1.0, 1.5, 2.0, 3.0], def: 1.5 },
+  'TPU':            { er: 3.0,  tanD: 0.05,   thicknesses: [0.3, 0.5, 1.0, 1.5, 2.0], def: 1.0 },
   'Custom':         { er: null, tanD: null,   thicknesses: [0.13, 0.25, 0.51, 0.79, 1.0, 1.52, 1.6, 2.0, 3.2], def: 1.6 },
 };
 
@@ -49,6 +53,10 @@ const FIELDS = {
   serpRatio:         { label: 'Serpentine kink', sym: 'S/R', def: 0.05, group: 'Shape' },
   traceWidthMm:      { label: 'Trace width', sym: 'w', unit: 'mm', def: 1.0, group: 'Shape' },
   groundPlane:       { label: 'Ground plane', group: 'Substrate', select: ['Full', 'None'] },
+  conductorForm:     { label: 'Conductor', group: 'Shape', select: ['Etched trace', 'Embedded channel'] },
+  channelDiaMm:      { label: 'Channel Ø', sym: 'd', unit: 'mm', def: 0.5, group: 'Shape' },
+  zCycles:           { label: 'Z-wave cycles', sym: 'm_z', def: 48, group: 'Stretch' },
+  maxStrainPct:      { label: 'Max strain', sym: 'ε', unit: '%', def: 20, group: 'Stretch' },
 };
 const TYPE_FIELDS = {
   rect: ['frequencyGHz', 'substratePreset', 'substrateEr', 'substrateHeightMm', 'lossTangent', 'conductorThicknessMm', 'portImpedance'],
@@ -58,7 +66,9 @@ const TYPE_FIELDS = {
   annular: ['frequencyGHz', 'substratePreset', 'substrateEr', 'substrateHeightMm', 'lossTangent', 'portImpedance', 'ringRatio', 'ringCount', 'ringGapMm', 'innerRingWidthMm', 'feedWidthMm'],
   cp: ['frequencyGHz', 'substratePreset', 'substrateEr', 'substrateHeightMm', 'lossTangent', 'portImpedance', 'polarization'],
   uwb: ['lowerCutoffGHz', 'feedGapMm', 'groundLengthMm', 'groundWidthMm'],
-  serp: ['frequencyGHz', 'undulations', 'ampRatio', 'serpRatio', 'traceWidthMm', 'substrateEr', 'substrateHeightMm', 'lossTangent', 'groundPlane', 'feedGapMm', 'portImpedance'],
+  serp: ['frequencyGHz', 'conductorForm', 'undulations', 'ampRatio', 'serpRatio', 'traceWidthMm',
+    'channelDiaMm', 'zCycles', 'maxStrainPct', 'substratePreset', 'substrateEr', 'substrateHeightMm',
+    'lossTangent', 'groundPlane', 'feedGapMm', 'portImpedance'],
 };
 
 const zstr = (m) => `${fmt(m.R, 1)} ${Number(m.X) >= 0 ? '+' : '−'} j${fmt(Math.abs(Number(m.X)), 1)} Ω`;
@@ -111,7 +121,24 @@ const VIEW = {
       ['Miniaturization', fmt(m.miniaturize, 2) + '×'],
       ['Undulations n', fmt(m.n, 0)],
       ['Rad. resistance', m.Rrad == null ? '— (grounded)' : '≈ ' + fmt(m.Rrad, 0) + ' Ω', 1],
-      ['Feed gap', fmt(m.feedGap) + ' mm'],
+      // Ground plane picks the feed: microstrip edge launch over ground, balanced
+      // delta-gap for the free-standing loop.
+      ['Feed', m.feedType === 'microstrip-edge' ? 'microstrip edge' : 'delta gap'],
+      m.feedType === 'microstrip-edge'
+        ? ['Feed line width', fmt(m.feedWidth) + ' mm']
+        : ['Feed gap', fmt(m.feedGap) + ' mm'],
+      // Embedded liquid-metal channel: the out-of-plane wave is what holds f₀
+      // under strain, so its residual drift is the headline number.
+      ...(m.embedded ? [
+        ['Channel Ø', fmt(m.channelDia) + ' mm'],
+        ['Z-wave amplitude', fmt(m.zAmp, 3) + ' mm', 1],
+        ['Z-wave a/λ', fmt(m.zRatio, 3)],
+        ['Drift @ ' + fmt(m.maxStrainPct, 0) + '% strain', fmt(m.driftPct, 3) + ' %', 1],
+        ['Drift if flat', fmt(m.flatDriftPct, 2) + ' %'],
+        ['Improvement', fmt(m.flatDriftPct / m.driftPct, 0) + '×'],
+        ['BLE 2.400–2.4835', Math.abs(m.driftPct) < 1.71 ? 'holds' : 'OUT OF BAND'],
+        ['Efficiency', fmt(m.efficiency * 100, 1) + ' %'],
+      ] : []),
     ],
   },
 };

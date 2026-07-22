@@ -7,11 +7,15 @@
 export const MAT_CONDUCTOR = 0xbfc7d0;
 export const MAT_SUBSTRATE = 0x2e7d5b;
 export const MAT_FEED = 0xe0524d;
+// Liquid metal (EGaIn/Galinstan): warmer and brighter than the steel PEC tone so
+// an injected channel reads differently from an etched trace at a glance.
+export const MAT_LIQUID = 0xe8e4dc;
 
 export function materialStyle(material) {
   switch (material) {
     case 'substrate': return { color: MAT_SUBSTRATE, opacity: 0.36, transparent: true };
     case 'feed': return { color: MAT_FEED, opacity: 1, transparent: false };
+    case 'lm': return { color: MAT_LIQUID, opacity: 1, transparent: false };
     case 'pec':
     default: return { color: MAT_CONDUCTOR, opacity: 1, transparent: false }; // steel PEC
   }
@@ -69,7 +73,13 @@ export function geometryToMeshSpecs(geometry) {
     } else if (p.shape === 'segment') {
       specs.push({ kind: 'shape', outline: segmentOutline(p), pos: [...p.center], ...style });
     } else if (p.shape === 'trace') {
-      specs.push({ kind: 'shape', outline: p.outline, pos: [...p.center], ...style });
+      // A closed loop is an annulus: `inner` is the hole boundary.
+      const spec = { kind: 'shape', outline: p.outline, pos: [...p.center], ...style };
+      if (p.inner && p.inner.length) spec.holes = [p.inner];
+      specs.push(spec);
+    } else if (p.shape === 'tube') {
+      // Swept channel along a 3D centerline (embedded liquid metal).
+      specs.push({ kind: 'tube', path: p.path.map((q) => [...q]), radius: p.radius, ...style });
     } else if (p.shape === 'feed') {
       specs.push({ kind: 'line', p1: [...p.p1], p2: [...p.p2], color: MAT_FEED });
     }
@@ -224,6 +234,9 @@ export function sceneBounds(specs) {
     } else if (s.kind === 'shape') {
       const [x, y, z] = s.pos;
       for (const o of s.outline) grow([x + o[0], y + o[1], z]);
+    } else if (s.kind === 'tube') {
+      const r = s.radius;
+      for (const q of s.path) { grow([q[0] - r, q[1] - r, q[2] - r]); grow([q[0] + r, q[1] + r, q[2] + r]); }
     } else if (s.kind === 'line') {
       grow(s.p1); grow(s.p2);
     }
