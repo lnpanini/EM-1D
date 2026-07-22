@@ -1249,6 +1249,7 @@ function buildVbaConcentricRing(result, design) {
   const L = [];
   L.push('Option Explicit');
   L.push('Sub Main');
+  L.push('Dim h As String');   // 'define background' is a long block → addToHistoryLong needs `h`
   L.push('On Error Resume Next');
   L.push('Port.Delete "1"');
   L.push(`Monitor.Delete "farfield (f=${fLabel})"`);
@@ -1753,7 +1754,6 @@ function buildVbaSerpentine(result, design) {
   L.push(`Monitor.Delete "e-field (f=${fLabel})"`);
   L.push('Component.Delete "component1"');
   L.push(`Material.Delete "${cond}"`);
-  if (embedded) L.push('Curve.DeleteCurve "serpcurve"');
   if (embedded) L.push('Curve.DeleteCurve "serpcurve"');
   if (hasSub) L.push('Material.Delete "Substrate Material"');
   L.push('On Error GoTo 0');

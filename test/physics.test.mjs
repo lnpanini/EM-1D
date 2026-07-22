@@ -700,3 +700,24 @@ test('embedded channel VBA: 3D curve wire, not an extrusion', () => {
   assert.doesNotMatch(vba, /With Extrude/, 'a 3D path cannot be an extrusion');
   assert.doesNotMatch(vba, /NaN|Infinity|undefined/);
 });
+
+// Under `Option Explicit`, CST rejects any macro that uses the `h = h & ...`
+// history accumulator (addToHistoryLong) without a `Dim h As String`. Text-only
+// tests can't compile VBA, so guard the invariant directly: every export that
+// both declares Option Explicit AND uses the accumulator must declare `h`.
+test('every Option Explicit macro that uses the h-accumulator declares Dim h', () => {
+  const base = {
+    frequencyGHz: 2.45, lowerCutoffGHz: 3.1, substrateEr: 4.4, substrateHeightMm: 1.6,
+    lossTangent: 0.02, conductorThicknessMm: 0.035, wireRadiusMm: 0.75,
+    groundLengthMm: 90, groundWidthMm: 90, feedGapMm: 1, portImpedance: 50,
+    ringRatio: 2, ringCount: 2, ringGapMm: 1, innerRingWidthMm: 2.5, feedWidthMm: 1,
+    polarization: 'RHCP', undulations: 12, ampRatio: 0.2, serpRatio: 0.05,
+    traceWidthMm: 0.8, groundPlane: 'Full',
+  };
+  for (const t of ['rect', 'dipole', 'monopole', 'disk', 'annular', 'cp', 'uwb', 'serp']) {
+    const vba = P.buildVba(P.synthesize(t, { ...base, type: t }), { ...base, type: t });
+    if (/Option Explicit/.test(vba) && /\bh = h & /.test(vba)) {
+      assert.match(vba, /Dim h As String/, `${t}: uses the h-accumulator under Option Explicit but never declares Dim h`);
+    }
+  }
+});
