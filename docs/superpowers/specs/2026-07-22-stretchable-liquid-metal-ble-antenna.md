@@ -3,8 +3,14 @@
 **Date:** 2026-07-22
 **Status:** RF design validated in CST (free space); on-body (skin) analysis in progress
 **Builds on:** `2026-07-19-serpentine-loop-antenna-design.md` (Type 8, the etched serpentine loop)
-**Application:** 2.44 GHz BLE antenna on a flexible, stretchable kinetic tape — PDMS cast with a
-dissolvable-core channel, back-filled with EGaIn liquid metal.
+**Application:** 2.44 GHz BLE antenna on a flexible, stretchable kinesiology tape — elastomer cast
+with an embedded channel, back-filled with EGaIn liquid metal.
+
+> ⚠️ **Read this as a dated record, not the current design.** The substrate is now **Ecoflex-30**
+> rather than PDMS — ε_r/tanδ differ slightly and the current design was re-solved with Ecoflex
+> values, though every *physical argument* below (ε_eff ≈ 1, incompressibility, the strain analysis)
+> transfers unchanged. Current design and fabrication process: `docs/DESIGN-EVOLUTION.md`.
+> **Heed the correction banner on §5.5 — those specific numbers are invalid.**
 
 ---
 
@@ -248,6 +254,35 @@ For a heavily-meandered (factor 2.14) liquid-metal loop in lossy PDMS, ~90 % rad
 genuinely strong result — the meandering, EGaIn resistivity, and substrate loss did **not** kill it.
 
 ### 5.5 On-body (skin) — measured
+
+> **⚠ CORRECTION (2026-07-23) — the numbers in this section should not be quoted.**
+> Re-examination of the model that produced them (`EM 2D Project.cst`) found two
+> independent setup faults, either of which invalidates the efficiency figures:
+>
+> 1. **The antenna was mistuned by ~80 %.** That model has `serp_R = 6.3 mm` — a
+>    ~4.4 GHz antenna — while efficiency was read at 2.44 GHz. An antenna that is
+>    electrically small at the readout frequency shows poor radiation efficiency
+>    *in free space too*, so the measurement cannot separate "loaded by tissue"
+>    from "wrong size". The `body_gap` sweep confirms it: as the gap grows and
+>    loading lifts, the dips converge on 4.0–4.2 GHz, heading for that free-space
+>    value — not toward 2.44 GHz.
+> 2. **The phantom was reflecting off its own back face.** `musc_t = 20 mm` is
+>    0.9 penetration depths at 2.45 GHz (δ ≈ 22.3 mm), so ~40 % of the field
+>    amplitude reached an abrupt muscle/vacuum boundary. Re-solving with
+>    `musc_t = 70 mm` (≥3δ) collapses the 2–3 dips per curve into a **single clean
+>    resonance** across 1.46–5.5 GHz. The "tissue's own modes" claimed below are
+>    therefore most likely an artifact of the truncated phantom. (Not conclusive
+>    on its own — `serp_R` also changed between those runs — so a same-`serp_R`
+>    A/B is still owed.)
+>
+> A further methodological point: radiation efficiency was nearly **flat** across
+> the whole `body_gap` sweep while total efficiency spanned ~11 dB. Since
+> total = radiation × mismatch, that sweep was measuring *mismatch*, not the
+> effect of standoff on radiation.
+>
+> Corrected defaults now live in `cst/add-tissue-phantom.vba`. Re-tuned on-body
+> results and the power-per-material breakdown supersede this section; see
+> `docs/superpowers/plans/2026-07-23-amc-backed-on-body-antenna.md`.
 
 A 3-layer skin/fat/muscle phantom (IT'IS values at 2.45 GHz) was added under the PDMS via an add-on
 macro (`add-tissue-phantom.vba`). Findings:

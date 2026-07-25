@@ -4,6 +4,32 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
+Two things, and it matters which one a question is about:
+
+1. **The active project — a 2.44 GHz BLE antenna on stretchable kinesiology tape** (liquid-metal
+   EGaIn in a cast Ecoflex channel), designed and validated in **CST Studio Suite**. This is the
+   coursework deliverable and where all current work happens.
+2. **The EM-1D web tool** (below) — a browser antenna-synthesis tool that produces CST VBA macros.
+   It was the *means*: it generated the first designs. Still tested and working, but no longer the
+   focus.
+
+**If you are here to understand the antenna, or to build presentation slides, start with:**
+
+- **`docs/DESIGN-EVOLUTION.md`** — the narrative: what we built, what we got wrong, how we found
+  out, and the current design. **Its §0 tells you which numbers are safe to present** — several
+  earlier results were measured on faulty setups and must not be quoted.
+- **`docs/PRESENTATION-GUIDE.md`** — slide-by-slide plan mapped to the grading rubric, which figures
+  exist, and an explicit "do not present these" list.
+
+Design history and derivations live in `docs/superpowers/specs/` and `docs/superpowers/plans/`.
+⚠️ Note `2026-07-22-stretchable-liquid-metal-ble-antenna.md` §5.5 carries a **correction banner** —
+its on-body numbers were superseded; heed it rather than quoting the section.
+
+CST tooling: `scripts/cst_bridge.py` (drive CST from Python — build/solve/read S-params, efficiency,
+power balance) and `cst/` (companion VBA macros + a headless macro generator).
+
+### The web tool
+
 EM-1D is a browser-based antenna **synthesis** tool: the user enters design requirements
 (frequency, substrate, target impedance, …) and it computes the antenna geometry, renders it in a
 live Three.js 3D view, and exports a CST Studio Suite VBA macro. It is a zero-dependency static site
@@ -11,23 +37,19 @@ live Three.js 3D view, and exports a CST Studio Suite VBA macro. It is a zero-de
 
 ## Commands
 
-```bash
-npm test            # node --test — runs everything in test/*.test.mjs (physics, scene, smoke)
-npm run dev         # python3 -m http.server 5173  → open http://localhost:5173
-npm run build       # produces static dist/ (copies index.html + src/)
-npm run preview     # serve the built dist/ on :4173
-```
+See `package.json` scripts for the canonical list (`test`, `dev`, `build`, `preview`). Run a single
+test file or test by name with `node --test test/physics.test.mjs` or
+`node --test --test-name-pattern "<name>"`.
 
-Run a single test file or test by name:
+Non-obvious constraints:
 
-```bash
-node --test test/physics.test.mjs
-node --test --test-name-pattern "rect patch FR4" 
-```
-
-Note: `npm run dev`/`preview` require `python3`, and `npm run build` uses Unix `rm`/`cp` — run these
-through the Bash tool (git-bash), not PowerShell. There is no bundler, linter, or transpile step; the
-browser loads the ES modules directly and resolves `three` via the importmap in `index.html`.
+- **`node`/`npm` may not be on PATH.** There is no standalone Node install on every dev machine here;
+  if `npm test` reports "command not found", run the suite with another app's bundled Node, e.g.
+  `export PATH="$HOME/AppData/Local/ms-playwright-go/<ver>:$PATH" && node --test`.
+- `npm run dev`/`preview` require `python3`, and `npm run build` uses Unix `rm`/`cp` — run these
+  through the Bash tool (git-bash), not PowerShell.
+- There is no bundler, linter, or transpile step; the browser loads the ES modules directly and
+  resolves `three` via the importmap in `index.html`.
 
 ## Architecture
 
