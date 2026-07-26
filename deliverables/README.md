@@ -9,6 +9,7 @@ The artifacts that matter, committed so everyone has them. See
 | `serp-antenna-fab-r025.step` | **Final fabrication CAD** — Ecoflex slab + EGaIn loop + fan-out stubs + closed junctions + connector wells |
 | `serp-channel-fab-r025.stl` | **The channel-volume solid** — loop + stubs + wells merged into one body. This is the geometry to print as the mould's **raised positive master**. Nothing is dissolved: you cast over it, peel, then bond a flat cap layer to seal the groove (see `docs/DESIGN-EVOLUTION.md` §7) |
 | `sdd11-final.png` | Differential reflection S<sub>dd11</sub> vs frequency (the headline result plot) |
+| `strain-sweep.png` | S₁₁ at 0 / 5 / 10 / 15 / 20 % uniaxial strain, BLE band shaded. **Shows resonance *does* shift (−8.8 % at 20 %) but BLE stays covered to ~10 %** — quote it as tolerance-by-bandwidth, not frequency invariance |
 | `param-sim-sparams.s2p` | Raw 2-port S-parameters (Touchstone, real/imag, 50 Ω). Load in any RF tool, or re-plot |
 
 ## The design these correspond to

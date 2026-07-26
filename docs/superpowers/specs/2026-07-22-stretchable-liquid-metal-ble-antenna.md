@@ -250,7 +250,9 @@ The question a deep S₁₁ *cannot* answer: does it radiate, or is it a matched
 - **Radiation efficiency ≈ 90 % (−0.47 dB)** — of accepted power, 90 % radiates.
 - **Total efficiency ≈ 81 % (−0.9 dB)** — includes mismatch; rises to ~88 % once the dip is centred.
 
-For a heavily-meandered (factor 2.14) liquid-metal loop in lossy PDMS, ~90 % radiation efficiency is a
+For a heavily-meandered (factor 2.14 *with the z-wave*; **1.75× for the flat build actually
+fabricated** — see `docs/DESIGN-EVOLUTION.md` §2b) liquid-metal loop in lossy PDMS, ~90 % radiation
+efficiency is a
 genuinely strong result — the meandering, EGaIn resistivity, and substrate loss did **not** kill it.
 
 ### 5.5 On-body (skin) — measured
