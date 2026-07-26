@@ -67,8 +67,11 @@ at mid-plane / Ecoflex / KT tape / skin. **No ground plane.**
 Horseshoe interconnects work by *stiffness contrast* — stiff copper unfolds instead of stretching.
 Liquid metal has no stiffness, so the channel deforms affinely: serpentine and plain circle both
 change perimeter by **5.54 % at 20 % strain — identically**. The meander earns its place for
-**2.14× miniaturisation**; stretchability comes from the conductor being *liquid*, not from geometry.
-(Evolution doc §2c.)
+**1.75× miniaturisation** (22.2 mm vs 38.9 mm diameter at equal path length — 3.07× on area);
+stretchability comes from the conductor being *liquid*, not from geometry. (Evolution doc §2b/§2c.)
+⚠️ **Use 1.75×, not 2.14×** — the older figure came from the z-wave design's 3D path length.
+If asked "why not a plain circular loop?": it's 1.75× larger and barely fits 50 mm tape. Be ready to
+concede we never simulated a plain-loop control, so the efficiency cost of meandering is un-measured.
 
 ### Working principles (10 %) — rubric asks for "schematics, diagrams, theoretical proofs"
 
@@ -82,10 +85,18 @@ S₁₁ ≈ 0 dB. This is *why* the design is an ungrounded delta-gap rather tha
 slab cannot bulk-load a ~20 mm loop. Consequence: the antenna is ~2× larger than the closed-form
 predicted. (§2c.)
 
-**9. Strain strategy — tolerance by bandwidth.** We do *not* compensate geometrically; the −10 dB
-band is 11.7 % wide, about twice the worst-case shift. Use the strain table from §2f. Include the
-trade: **body loading lowers Q and widens the band — the same physics that costs efficiency buys
-strain tolerance.**
+**9. Strain strategy — tolerance by bandwidth.** Figure: `deliverables/strain-sweep.png` (five
+S₁₁ curves, 0–20 % strain, BLE band shaded).
+
+⚠️ **Phrase this carefully.** The wrong claim is *"stretching doesn't shift the resonance"* — it
+shifts **−8.8 % at 20 % strain**, and our own sweep shows it. The correct, defensible claim is:
+
+> The resonance *does* move with strain, but the −10 dB bandwidth (11.7 %) is roughly **twice** the
+> worst-case shift, so the antenna stays inside BLE up to **~10 % strain**.
+
+We do not compensate geometrically — the z-wave that would have (Δf₀ < 0.2 %) is unmanufacturable
+(§7). Include the trade: **body loading lowers Q and widens the band, so the same physics that costs
+efficiency is what buys the strain tolerance.**
 
 ### Iterations (10 %) — the easy marks
 
@@ -183,6 +194,8 @@ that's why — the data is there.
 
 | Claim | Why not |
 |---|---|
+| **"Stretching doesn't change the resonant frequency much"** | **Our own sweep says it changes a lot** — −8.8 % at 20 % strain, right out of BLE. Say *"stays within BLE to ~10 % strain because the band is wide"* instead — evolution doc §2f |
+| "2.14× miniaturisation" | That was the z-wave design's 3D path. The flat build gives **1.75×** — evolution doc §2b |
 | "~5–8 % radiation / 1–6 % total on skin" (old spec §5.5) | Mistuned antenna + truncated phantom. Superseded — §2e |
 | Tissue constants cited to "IT'IS / Gabriel database" | Written from memory, never looked up. Verify before attaching a citation — §6 |
 | "Ø0.5 mm is our fabrication limit" | It was the synthesis engine's default, not a stated process capability — §6 |

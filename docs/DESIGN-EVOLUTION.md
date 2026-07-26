@@ -93,7 +93,27 @@ means, not the end.
 
 ### (b) The serpentine loop, and the grounded-loop proof — `2026-07-19-*`
 
-A meander loop earns **2.14× miniaturisation** over a plain 1λ loop.
+A meander loop earns **1.75× miniaturisation** over a plain 1λ loop — compared at *equal path
+length*, i.e. same resonant frequency:
+
+| | Path | Footprint Ø |
+|---|---|---|
+| Serpentine (as built) | 120.8 mm | **22.2 mm** |
+| Plain circular loop | 120.8 mm | 38.9 mm |
+
+1.75× on diameter, **3.07× on area**. On 50 mm kinesiology tape that is 13.9 mm of margin each side
+versus 5.5 mm — the plain loop technically fits but leaves no room for the feed. Conductor length is
+identical by construction, so the meander costs **no** extra ohmic loss.
+
+> ⚠️ **Earlier drafts said 2.14×. That was wrong for this design** — it came from the z-wave version,
+> whose quoted path length was the *3D* arc including the out-of-plane undulation (~+28 % path). The
+> flat serpentine gives 1.75×. Use 1.75×.
+
+**Honest gap: no plain-loop control was ever simulated.** The size advantage above is geometry and is
+solid. But the *cost* — meandering should reduce radiation efficiency, because adjacent
+anti-parallel segments (~4.7 mm apart ≈ 0.04 λ) partially cancel in the far field — has never been
+measured against a circular baseline. So "the meander is worth it" is a reasoned argument, not a
+demonstrated trade. If a plain-loop comparison run is ever affordable, that is the experiment.
 
 The important find was structural, not incremental. An early grounded version produced **flat
 S₁₁ ≈ 0 dB across the whole band** — total reflection. That is not a tuning failure; it is

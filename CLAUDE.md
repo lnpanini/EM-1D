@@ -13,6 +13,11 @@ Two things, and it matters which one a question is about:
    It was the *means*: it generated the first designs. Still tested and working, but no longer the
    focus.
 
+**🔴 ACTIVE WORK (2026-07-26): reviving the out-of-plane z-wave design.** The flat serpentine does
+not hold frequency under stretch (−8.8 % at 20 % strain), which is the project's core premise. The
+z-wave fixes it analytically (~0.11 % drift). Start at **`docs/ZWAVE-HANDOFF.md`** — it has the
+design point, the re-tuning still needed, and a port bug already found and fixed.
+
 **If you are here to understand the antenna, or to build presentation slides, start with:**
 
 - **`docs/DESIGN-EVOLUTION.md`** — the narrative: what we built, what we got wrong, how we found
@@ -20,6 +25,7 @@ Two things, and it matters which one a question is about:
   earlier results were measured on faulty setups and must not be quoted.
 - **`docs/PRESENTATION-GUIDE.md`** — slide-by-slide plan mapped to the grading rubric, which figures
   exist, and an explicit "do not present these" list.
+- **`docs/ZWAVE-HANDOFF.md`** — the current engineering task (see above).
 
 Design history and derivations live in `docs/superpowers/specs/` and `docs/superpowers/plans/`.
 ⚠️ Note `2026-07-22-stretchable-liquid-metal-ble-antenna.md` §5.5 carries a **correction banner** —
