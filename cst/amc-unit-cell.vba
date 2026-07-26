@@ -17,12 +17,27 @@ Sub Main
 Dim h As String
 
 ' ---- parameters ----
+' SIZING WARNING: the original defaults (amc_h 1.5, cell 18, patch 15) resonate at
+' ~7.3 GHz, not 2.44 -- they were ~3x too small. Two independent models (half-wave
+' patch, and the Sievenpiper LC sheet L=mu0*h against the patch-grid C) agree that a
+' plain-PDMS cell at 2.44 GHz needs:
+'
+'     h = 1.5 mm -> cell 52..70 mm   (3x3 array 156..210 mm)
+'     h = 3.0 mm -> cell 30..42 mm   (3x3 array  90..126 mm)
+'
+' Both are too large for a wearable tape, which is why a miniaturisation route
+' (mushroom vias, or a higher-er ceramic-loaded layer) is required -- see
+' docs/superpowers/plans/2026-07-23-amc-backed-on-body-antenna.md.
+'
+' The defaults below are the honest plain-PDMS baseline: they DO put the 0-deg
+' crossing near 2.44 GHz, and exist to validate the model in CST before any
+' miniaturisation is attempted. They are deliberately not wearable-sized.
 StoreDoubleParameter "f0", 2.44
 StoreDoubleParameter "eps_r", 2.68     ' PDMS
 StoreDoubleParameter "tand", 0.02
-StoreDoubleParameter "amc_h", 1.5      ' substrate thickness (mm) -- spacer patch->ground
-StoreDoubleParameter "cell", 18.0      ' unit-cell period (mm)
-StoreDoubleParameter "patch", 15.0     ' patch side (mm) -- THE variable to tune / sweep
+StoreDoubleParameter "amc_h", 3.0      ' substrate thickness (mm) -- spacer patch->ground
+StoreDoubleParameter "cell", 35.0      ' unit-cell period (mm)
+StoreDoubleParameter "patch", 34.0     ' patch side (mm) -- THE variable to tune / sweep
 StoreDoubleParameter "met_t", 0.035    ' patch metal thickness
 StoreParameter "fmin", "f0*0.4"
 StoreParameter "fmax", "f0*2.2"
@@ -105,9 +120,14 @@ End Sub
 '    The frequency where the phase = 0 deg is the AMC operating frequency.
 '    The useful in-phase band is roughly the +/-90 deg span around it.
 '
-' 5. TUNE: Parameter Sweep on `patch` (e.g. 12 .. 18 mm). Larger patch pushes the
-'    0-deg crossing DOWN in frequency. Land it on 2.44 GHz. If the patch gets
-'    close to `cell`, increase `cell` too (keep a gap of ~2-3 mm between patches).
+' 5. TUNE: Parameter Sweep on `patch` (e.g. 28 .. 40 mm for the plain-PDMS
+'    baseline). Larger patch pushes the 0-deg crossing DOWN in frequency. Land it
+'    on 2.44 GHz. If the patch gets close to `cell`, increase `cell` too (keep a
+'    gap of ~1-3 mm between patches).
+'    Sanity check: if the crossing is not within ~15% of the predicted frequency,
+'    stop -- the model is wrong and the sweep range cannot be trusted.
+'    Also RECORD THE +/-90 deg BANDWIDTH. Skin pulls the bare loop 2.44 -> ~1.35 GHz,
+'    so a narrow AMC band will mistune independently of the antenna on-body.
 '
 ' 6. INTEGRATE: once patch/cell/amc_h give 0 deg at 2.44, build a 3x3 array of
 '    that cell, place the tuned loop ~1-2 mm above it, and co-simulate on the

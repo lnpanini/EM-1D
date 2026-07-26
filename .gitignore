@@ -2,3 +2,7 @@ dist/
 node_modules/
 *.log
 .vercel
+
+# CST working directory: solved projects + solver scratch. ~22 GB — never commit.
+# The final artifacts that matter are copied into deliverables/ instead.
+work/
