@@ -6,3 +6,13 @@ node_modules/
 # CST working directory: solved projects + solver scratch. ~22 GB — never commit.
 # The final artifacts that matter are copied into deliverables/ instead.
 work/
+
+# Python bytecode
+__pycache__/
+*.pyc
+
+# Mould plate meshes: 31 MB each, and DERIVED -- regenerate with
+#   python scripts/build_gutter_mold.py <serp_R> <sub_h>
+# (pure Python, no CST needed, ~3 min). The generator is the source of truth.
+deliverables/zwave-mould-concave-forms-upper.stl
+deliverables/zwave-mould-convex-forms-lower.stl

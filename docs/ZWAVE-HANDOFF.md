@@ -3,6 +3,41 @@
 **Status: in progress, 2026-07-26.** Read this together with
 [`DESIGN-EVOLUTION.md`](DESIGN-EVOLUTION.md).
 
+> ## 🔴 SUPERSEDED — this document is now history, not instructions (2026-07-27)
+>
+> The z-wave was built, fed, tuned, strain-swept and tooled. **Read
+> [DESIGN-EVOLUTION.md](DESIGN-EVOLUTION.md) §2i for the current design**; the
+> parameters and targets below are two iterations old. What changed:
+>
+> 1. **The "~0.11 % drift" target is wrong, and so is `a/λ_z ≈ 0.183`.** Measured
+>    drift is **−7.82 % at 20 % strain**, against a flat control on the *same*
+>    substrate at −10.38 % — a **25 % reduction, not a halving.** The z-wave is
+>    **strain-tolerant, not strain-invariant.**
+>    → **[ZWAVE-STRAIN-FINDINGS.md](ZWAVE-STRAIN-FINDINGS.md)**
+>
+>    Two reasons the analytical model over-promised: it modelled *only* the
+>    path-length term, which full-wave shows is about **half** the total drift;
+>    and only **60–70 %** of the out-of-plane length is electrically realised, so
+>    strain converts cheap out-of-plane length into expensive in-plane length even
+>    when 3D arc length is perfectly preserved.
+>
+> 2. **The design point below is superseded twice over.** Current:
+>    `serp_R = 8.5`, `z_amp = 1.004` (**coupled** as `0.1181·serp_R`, not fixed),
+>    `z_cyc = 24`, `sub_h = 6.508` (2 mm cover). Sdd11 −6.22 dB, radiation 5.22 %,
+>    delivered 3.97 %. → **[ZWAVE-FEED-FINDINGS.md](ZWAVE-FEED-FINDINGS.md)**
+>
+> 3. **"Manufacturability — resolved" below is right in outcome, wrong in method.**
+>    No sacrificial core and no two-cavity mould: the meander rests on a **concave
+>    ring**, and that ring surface is the parting surface.
+>    → **[ZWAVE-MOULD-NOTES.md](ZWAVE-MOULD-NOTES.md)**
+>
+> Also fixed: the z-wave must be **`Cos`** (even in `t`), not `Sin` (odd), or it
+> destroys the `y = 0` mirror plane the differential feed depends on. The
+> "mirror geometry into the feed block" rule below is necessary but **not
+> sufficient** — the symmetry *class* matters too.
+>
+> The port-floating warning in this document was correct and was heeded.
+
 ---
 
 ## Why we came back to the z-wave
