@@ -13,10 +13,36 @@ Two things, and it matters which one a question is about:
    It was the *means*: it generated the first designs. Still tested and working, but no longer the
    focus.
 
-**🔴 ACTIVE WORK (2026-07-26): reviving the out-of-plane z-wave design.** The flat serpentine does
-not hold frequency under stretch (−8.8 % at 20 % strain), which is the project's core premise. The
-z-wave fixes it analytically (~0.11 % drift). Start at **`docs/ZWAVE-HANDOFF.md`** — it has the
-design point, the re-tuning still needed, and a port bug already found and fixed.
+**🔴 STATUS (2026-07-27): the z-wave is revived, built, fed, tuned, strain-swept and tooled.**
+
+Current design — **z-wave**, `serp_R` 8.5, `z_amp` 1.004, `z_cyc` 24, `sub_h` 6.508 mm (2 mm cover).
+S<sub>dd11</sub> −6.22 dB @ 2.44 GHz, radiation 5.22 %, delivered 3.97 %.
+
+**The headline result, stated carefully:** the z-wave is **strain-tolerant, not strain-invariant**.
+It reduces drift by **25 %** vs a flat control on the same substrate (−7.82 % vs −10.38 % at 20 %
+strain). The handoff's "~0.11 % drift" was an analytical prediction that full-wave **refuted** — it
+modelled only the path-length term, which is about half the real drift, and it assumed out-of-plane
+length counts electrically as much as in-plane length (it counts ~60–70 %).
+
+Read in this order:
+
+- **`docs/DESIGN-EVOLUTION.md`** — the narrative. §2i is the current design; a red box at the top
+  lists the three conclusions this file used to state that are now **wrong**.
+- **`docs/ZWAVE-STRAIN-FINDINGS.md`** — the strain premise and §8 the re-verified numbers.
+- **`docs/ZWAVE-FEED-FINDINGS.md`** — the real feed; §7 = why ranking on match alone picks the
+  wrong design.
+- **`docs/ZWAVE-MOULD-NOTES.md`** — the concave-ring mould; §2b = current design point.
+- **`docs/ZWAVE-HANDOFF.md`** — ⚠️ **history now, not instructions.** Superseded twice over.
+
+**Three traps this project has actually fallen into — worth knowing before changing anything:**
+
+1. **Any change to the trace must be mirrored into the feed block** — and the *symmetry class*
+   matters, not just the geometry. An **odd** (`Sin`) out-of-plane wave destroys the `y = 0` mirror
+   plane the differential feed needs; it must be **even** (`Cos`).
+2. **Rank designs on delivered power** (`rad_eff × (1−|Sdd11|²)`), never on match alone. Past
+   anti-resonance the best-matched point had the *worst* delivered power.
+3. **Never compare against a control on different geometry.** Both wrong conclusions in this
+   project's history came from mismatched baselines.
 
 **If you are here to understand the antenna, or to build presentation slides, start with:**
 

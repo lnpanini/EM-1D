@@ -14,6 +14,29 @@ come in cold, understand the reasoning, and contribute without re-deriving it.
 
 ---
 
+> # 🔴 2026-07-27: THE DESIGN HAS CHANGED — read this box before anything else
+>
+> The z-wave was **revived, built, fed, tuned, strain-swept and tooled**. Three of
+> this document's conclusions are now wrong, and one headline number below is for
+> a **superseded** design.
+>
+> | This document says | Actually |
+> |---|---|
+> | §2f "the z-wave is dropped, and the process confirms it can't be built" | **Wrong.** It is built and mouldable — the meander rests on a *concave ring*, and that ring surface is the mould parting surface. See [ZWAVE-MOULD-NOTES](ZWAVE-MOULD-NOTES.md). |
+> | §7 "an open-face mould can only produce planar channels, so the z-wave genuinely is not manufacturable" | **Wrong**, for the same reason. Two flat plates, one concave ring + one convex ring. |
+> | §0/§2h current design = flat serpentine, `serp_R` 8.95, S<sub>dd11</sub> 2.423 GHz | **Superseded.** Current design is the **z-wave**: `serp_R` 8.5, `sub_h` 6.508 mm. |
+> | ZWAVE-HANDOFF "~0.11 % drift" | **Wrong.** Measured **−7.82 %** at 20 % strain. |
+>
+> **The one-line summary for a slide:** the z-wave is **strain-tolerant, not
+> strain-invariant** — it reduces drift by **25 %** versus a flat control on the
+> same substrate (−7.82 % vs −10.38 % at 20 % strain). It does **not** halve it,
+> and it does **not** hold frequency.
+>
+> Full detail, all CST-measured:
+> - **[ZWAVE-STRAIN-FINDINGS.md](ZWAVE-STRAIN-FINDINGS.md)** — the strain premise, why the analytical model was wrong, and §8 the re-verified numbers at the built geometry
+> - **[ZWAVE-FEED-FINDINGS.md](ZWAVE-FEED-FINDINGS.md)** — the real feed, and §7 why ranking on match alone picks the wrong design
+> - **[ZWAVE-MOULD-NOTES.md](ZWAVE-MOULD-NOTES.md)** — the concave-ring mould, and §2b the current design point
+
 ## 0. Read this first: which numbers are trustworthy
 
 The single most useful thing in this document. Numbers in this project come from four very
@@ -26,7 +49,10 @@ different places, and **mixing them up is how a wrong figure ends up on a slide.
 | **C — Analytical / closed-form** | Hand or `physics.js` calculation, not full-wave | Yes, *labelled as analytical* |
 | **D — Assumed / from literature** | Material constants, published comparisons | Yes, *cited as assumption* |
 
-**Tier A — the current headline results** (all on-body, Ecoflex, with the real SSMA feed modelled):
+**Tier A — the FLAT design's results** (on-body, Ecoflex, real SSMA feed). ⚠️ These
+are still valid measurements **of the flat serpentine**, but the flat serpentine is
+no longer the design — see the red box above. For the current z-wave numbers use
+the table in §2i.
 
 | Quantity | Value | Where from |
 |---|---|---|
@@ -211,6 +237,13 @@ on-body re-tune is **not optional**.
 
 ### (f) Simplifications that stuck
 
+- ⚠️ **SUPERSEDED (2026-07-27): the z-wave was revived and IS buildable.** The
+  paragraph below is kept as the reasoning at the time, but its conclusion is
+  wrong. The mistake was assuming the mould parting surface must be *flat*. It
+  need not be: the meander rests on a **concave ring**, and that ring surface is
+  itself the parting surface, so it cuts the channel along 100 % of the loop
+  (a flat plane manages at most 33 %). Two plates — one concave ring, one convex —
+  and no sacrificial core. See [ZWAVE-MOULD-NOTES.md](ZWAVE-MOULD-NOTES.md).
 - **The z-wave is dropped, and the process confirms it can't be built.** An out-of-plane undulation
   was derived to give strain-invariant resonance (optimum a/λ_z ≈ 0.183, Δf₀ < 0.2 % to 20 % strain —
   a nice analytical result), and was fully implemented in the engine and the CST export. It is out
@@ -277,7 +310,7 @@ the antenna. Evolution:
   afterwards. (Rounding also matters for fabrication: a sharp inner corner traps air and starves
   the EGaIn fill.)
 
-### (h) Current design
+### (h) The flat design — SUPERSEDED 2026-07-27, see (i)
 
 | Parameter | Value |
 |---|---|
@@ -288,6 +321,41 @@ the antenna. Evolution:
 | Substrate | Ecoflex-30, ≈1.95 mm |
 | Feed | crest → 2 stubs → wells at (14, ±4), 2× SSMA differential |
 | `z_amp` | 0 (flat) |
+
+### (i) CURRENT design — z-wave, revived and built (2026-07-27)
+
+| Parameter | Value |
+|---|---|
+| `serp_R` | **8.5 mm** |
+| `z_amp` = `z_ratio`·`serp_R` | **1.004 mm** (`z_ratio` = 0.118117) |
+| `z_cyc` | **24** (= 2 · `serp_n`, forced — see below) |
+| `amp_ratio` / `serp_ratio` / `serp_n` | 0.2 / 0.05 / 12 |
+| `chan_r` / `fillet_r` | 0.25 / 0.25 mm |
+| Substrate `sub_h` | **6.508 mm** Ecoflex-30 |
+| Cover over channel crests | **2.00 mm** each face (fabrication-driven) |
+| Feed | crest gap → 2 stubs **flat in the land plane at z = +1.004** → 2.41 mm deep wells → 2× SSMA differential |
+| S<sub>dd11</sub> @ 2.44 GHz | −6.22 dB |
+| Radiation efficiency | 5.22 % |
+| **Delivered power** (rad × (1−\|S<sub>dd11</sub>\|²)) | **3.97 %** |
+| **Strain drift @ 20 %** | **−7.82 %** (flat control on same substrate: −10.38 %) |
+
+**Two results here are worth understanding, not just quoting:**
+
+**`z_cyc` = 2·`serp_n` is not a tuning choice — it is forced.** The meander rests on
+a concave ring with an *even* cross-section `z = f(u)`, `u = ρ − serp_R`. The
+meander's radius is `u = A·cos(n·t)`, so for any even profile the lowest harmonic
+is `cos(2n·t)`. The out-of-plane wave *must* run at twice the in-plane frequency.
+Verified: the built centreline lies on the parabolic ring to within **19 µm**.
+
+**Why the z-wave under-delivers.** It cancels only the **path-length** term of the
+drift, and full-wave shows that term is roughly *half* the total — the rest is the
+channel cross-section thinning, the loop going elliptical, and the conductor moving
+toward the skin as the slab thins. Worse, only **60–70 %** of the out-of-plane
+length is electrically realised (the wiggle is ~0.05 λ, so it partly cancels), while
+in-plane length counts fully. Strain converts out-of-plane length into in-plane
+length — banking slack in a currency worth 60 cents and being repaid in one worth
+100. So even perfect arc-length preservation still drifts. Full decomposition in
+[ZWAVE-STRAIN-FINDINGS.md](ZWAVE-STRAIN-FINDINGS.md) §8.
 
 ---
 
@@ -357,6 +425,9 @@ you back out the real ε_eff instead of getting one pass/fail.
 | Path | What it is |
 |---|---|
 | `docs/DESIGN-EVOLUTION.md` | **This file** — the narrative |
+| `docs/ZWAVE-STRAIN-FINDINGS.md` | **The strain premise** — why the analytical model was wrong; §8 = re-verified numbers at the built geometry |
+| `docs/ZWAVE-FEED-FINDINGS.md` | **The real feed** — symmetry bug, impedance analysis; §7 = why match alone is the wrong metric |
+| `docs/ZWAVE-MOULD-NOTES.md` | **The concave-ring mould** — parting-surface proof; §2b = current design point |
 | `docs/PRESENTATION-GUIDE.md` | Slide plan mapped to the grading rubric |
 | `deliverables/` | **Final CAD, the S<sub>dd11</sub> plot, and raw S-parameters** — committed, so everyone has them |
 | `docs/superpowers/specs/2026-07-22-*` | Liquid-metal spec. **§5.5 has a correction banner — heed it** |
@@ -434,6 +505,29 @@ the distinction.
 buried out-of-plane undulation from a rigid open cavity. So the **z-wave genuinely is not
 manufacturable by this process**, and §2f's conclusion stands on process grounds, not just team
 preference.
+
+> ### ⚠️ The paragraph above is WRONG (corrected 2026-07-27)
+>
+> It smuggles in an assumption: that the parting surface must be **flat**. Drop
+> that and the z-wave is straightforwardly mouldable.
+>
+> The meander rests on a **concave ring** (a parabolic annular gutter). Make that
+> ring surface the parting surface and it cuts the channel along **100 %** of the
+> loop, so each half carries a clean half-round groove. For comparison, the best
+> possible *flat* plane cuts only **33 %** — the other 67 % ends up fully enclosed
+> in one half as a floating island with no draw direction, which is the real
+> reason a flat parting fails. Quantified in `work/mold_parting_check.py`.
+>
+> The tooling is therefore **two flat plates**: one with a **concave** ring, one
+> with a **convex** ring, each carrying the same Ø0.5 mm half-round ridge along
+> the meander. Cast one part against each, flip the lower one, bond at the ring
+> surface. **No sacrificial core.** Ring at the current design point: centred
+> ρ = 8.500 mm, 3.400 mm wide, 2.008 mm deep, walls monotonic at 67° so both
+> plates release by lifting straight out.
+>
+> The flip is only legal because the design is mirror-symmetric about `y = 0` —
+> which is the same property the differential feed needs. See
+> [ZWAVE-MOULD-NOTES.md](ZWAVE-MOULD-NOTES.md).
 
 **What it means for the STL deliverable:** `serp-channel-*.stl` is the **channel-volume solid**, i.e.
 the geometry to print as the mould's raised **positive master**. It is *not* a sacrificial core to be

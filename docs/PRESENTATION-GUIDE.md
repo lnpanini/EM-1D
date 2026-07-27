@@ -9,6 +9,30 @@ pull it from?*
 > "which of our results are Tier A and safe to present?", or
 > "I'm doing the strain slide — give me the numbers and the caveat."
 
+> ## 🔴 2026-07-27 — THE DESIGN CHANGED. Re-read "Do not present these" before drafting.
+>
+> **The antenna is now the z-wave, not the flat serpentine.** `serp_R` 8.5,
+> `sub_h` 6.508 mm, 2 mm cover. Every flat-serpentine figure in this guide is a
+> *previous iteration* — still true, no longer current.
+>
+> **The strain slide needs rewriting.** The honest headline:
+>
+> > The out-of-plane z-wave reduces strain-induced frequency drift by **25 %**
+> > (−7.82 % vs −10.38 % for a flat control on the same substrate, at 20 % strain).
+> > It is **strain-tolerant, not strain-invariant.**
+>
+> Do **not** say ~0.11 %, "holds frequency", "strain-invariant", or "halves the
+> drift". The first three were an analytical prediction that full-wave refuted; the
+> fourth was true on a thinner substrate than the one we build.
+>
+> Figures: `deliverables/strain-zwave-vs-flat.png` (matched-geometry comparison),
+> `zwave-gutter-section.png` (the concave ring), `zwave-gutter-plates.png` (tooling),
+> `subh-cover-explained.png` (sub_h vs cover).
+>
+> Detail: [ZWAVE-STRAIN-FINDINGS.md](ZWAVE-STRAIN-FINDINGS.md),
+> [ZWAVE-FEED-FINDINGS.md](ZWAVE-FEED-FINDINGS.md),
+> [ZWAVE-MOULD-NOTES.md](ZWAVE-MOULD-NOTES.md).
+
 ---
 
 ## The rubric drives the structure
@@ -101,11 +125,13 @@ efficiency is what buys the strain tolerance.**
 ### Iterations (10 %) — the easy marks
 
 **10. Design evolution.** Concentric patch → serpentine; grounded → ungrounded; bulk-ε_r sizing →
-CST-tuned; PDMS → Ecoflex; z-wave derived and implemented → set aside for a flat serpentine.
-⚠️ **Don't claim the z-wave is unmanufacturable** unless the fabrication process is settled — see
-evolution doc §7. Say "deferred" rather than "impossible" if in doubt.
+CST-tuned; PDMS → Ecoflex; flat serpentine → **z-wave revived, built and tooled** once we realised
+the mould parting surface need not be flat. That last arc — dropped as "unmanufacturable", then
+recovered by questioning the assumption behind it — is the strongest iteration story we have.
 
-**11. "What we got wrong, and how we caught it."** This table is the slide:
+**11. "What we got wrong, and how we caught it."** This table is the slide. The
+last five rows are from the z-wave revival and are the most recent, most
+instructive ones:
 
 | Error | Caught by | Lesson |
 |---|---|---|
@@ -116,6 +142,11 @@ evolution doc §7. Say "deferred" rather than "impossible" if in doubt.
 | Feed model without coax shields | Resonance fell below 1.8 GHz | A feed with no return path is wrong |
 | Ø0.8 junction fillet treated as cosmetic | Resonance moved +74 MHz | Feed geometry is an **RF** feature |
 | AMC cell sized 15–20 mm | Two independent models → 30–70 mm | Rescale published designs for your ε_r |
+| **"z-wave gives ~0.11 % drift"** | Full-wave measured **−7.82 %** | An analytical model that captures *one* mechanism does not predict the total |
+| **"z-wave is unmanufacturable"** | Realising the parting surface need not be flat | Check the *assumption* behind an impossibility claim |
+| **z-wave compared against a flat control on a different substrate** | Building a matched control | Compare like with like or the result is meaningless |
+| **Design ranked on best S<sub>dd11</sub>** | The best-match point had the **worst** delivered power | Optimise what you actually want, not its proxy |
+| **Feed symmetry: `Sin` z-wave (odd in t)** | Ports 1 and 2 gave different efficiencies; S<sub>dd11</sub> stuck at −4.3 dB | A differential feed needs a true mirror plane, not just mirrored geometry |
 
 ### Simulation & Analysis (10 %)
 
@@ -194,12 +225,16 @@ that's why — the data is there.
 
 | Claim | Why not |
 |---|---|
-| **"Stretching doesn't change the resonant frequency much"** | **Our own sweep says it changes a lot** — −8.8 % at 20 % strain, right out of BLE. Say *"stays within BLE to ~10 % strain because the band is wide"* instead — evolution doc §2f |
+| **"The z-wave holds frequency under stretch" / "~0.11 % drift" / "strain-invariant"** | 🔴 **Measured −7.82 % at 20 % strain.** The analytical model that predicted ~0 % modelled only the path-length term, which is about *half* the real drift. Say **"strain-tolerant, not strain-invariant"** — ZWAVE-STRAIN-FINDINGS §8 |
+| **"The z-wave halves the drift"** | 🔴 True on the *thin* slab (1.72×), **not** on the built one. At `sub_h` 6.508 it is **1.33× — a 25 % reduction** (−7.82 % vs flat −10.38 %). Quote 25 % |
+| **"The z-wave is unmanufacturable"** | 🔴 **It is manufacturable** — the meander rests on a concave ring, and that ring *is* the mould parting surface. Two plates, no core — ZWAVE-MOULD-NOTES |
+| **Any flat-serpentine number as "our design"** | The design is now the **z-wave**: `serp_R` 8.5, `sub_h` 6.508 mm — evolution doc §2i. The flat numbers (2.423 GHz, −9 dB, `serp_R` 8.95) are a *previous iteration* |
+| **S<sub>dd11</sub> alone as "best design"** | Ranking on match picks the wrong geometry once past anti-resonance: our `serp_R` 9.1 point had the **best match and the worst delivered power**. Use `rad_eff × (1−\|S_dd11\|²)` — ZWAVE-FEED-FINDINGS §7 |
+| **"Stretching doesn't change the resonant frequency much"** | **Our own sweeps say it changes a lot** — flat −10.4 %, z-wave −7.8 % at 20 % strain. Say what the z-wave *does* buy: a 25 % reduction |
 | "2.14× miniaturisation" | That was the z-wave design's 3D path. The flat build gives **1.75×** — evolution doc §2b |
 | "~5–8 % radiation / 1–6 % total on skin" (old spec §5.5) | Mistuned antenna + truncated phantom. Superseded — §2e |
 | Tissue constants cited to "IT'IS / Gabriel database" | Written from memory, never looked up. Verify before attaching a citation — §6 |
 | "Ø0.5 mm is our fabrication limit" | It was the synthesis engine's default, not a stated process capability — §6 |
-| "The z-wave is unmanufacturable" | Depends on an unsettled process question — §7. Say "deferred" |
 | "Tissue's own modes cause extra S₁₁ dips" | Most likely a truncated-phantom artifact |
 | "AMC unit cell 15–20 mm, 3×3 ≈ 50–60 mm" | Wrong by ~3× for elastomer — §3 |
 | "Mushroom vias miniaturise the AMC" | No effect at normal incidence — §3 |
