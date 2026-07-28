@@ -7,6 +7,10 @@ The artifacts that matter, committed so everyone has them. See
 > **🔴 2026-07-27 — the design is now the Z-WAVE, not the flat serpentine.**
 > Files are grouped below by which design they belong to. The `serp-*` files are a
 > previous iteration; the `zwave-*` files are current.
+>
+> **Before putting any figure on a slide**, check it against the provenance table in
+> [`cst/README.md`](cst/README.md) — it lists every figure's project, run ID and
+> geometry, and flags the two that show superseded models.
 
 ## CURRENT — z-wave design
 
@@ -18,7 +22,7 @@ The artifacts that matter, committed so everyone has them. See
 | `zwave-gutter-plates.png` | The two plates, top views coloured by height + radial sections |
 | `zwave-gutter-section.png` | The concave ring cross-section, and why `z_cyc` must be 2 × `serp_n` |
 | `zwave-geometry-preview.png` | The antenna: top / side / end / feed detail |
-| `strain-zwave-vs-flat.png` | **The strain result** — z-wave vs a flat control at *matched* geometry |
+| `strain-zwave-vs-flat.png` | **The strain result** — z-wave vs a flat control at *matched* geometry (`serp_R` 8.5, `sub_h` 6.508, differing only in `z_amp`) |
 | `subh-cover-explained.png` | What `sub_h` and `cover` mean, and why cover is held fixed |
 
 ## The current design
