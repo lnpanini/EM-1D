@@ -236,6 +236,49 @@ alone suggest.
   crosses zero between serp_R 8.7 (+38 Ω) and 8.9 (−44 Ω). So "does an optimum
   exist" is answered by the closed impedance locus, not by where a scan stopped.
 
+### A trap worth adding to the list: identical parameters ≠ identical model (2026-07-29)
+
+`work/zwave-feed2.cst` and `work/zwave-feed3.cst` have **byte-identical parameter
+sets** — all 40 of them, `serp_R` 7.7, `sub_h` 3.0, `z_amp` 0.9095, everything.
+They give **different answers**: Sdd11 @ 2.44 of −7.09 dB vs −5.98 dB, with
+|Sdd11| minima 0.7 GHz apart (2.476 vs 3.181).
+
+The difference is in the **model history**, not the parameters. Diffing
+`Model/3D/Model.mod`:
+
+- feed2 has **no 3-point stub** — it lacks the `sc1`/`sc2` radial scaling that
+  pulls the stub out to `outer_r` at `z = zamp`, so the stub is a single straight
+  line that does not lie in the land plane.
+- feed2's wells are `.Zrange "land_z - chan_r", "sub_h/2"` → **0.66 mm deep**;
+  feed3's are `.Zrange "-z_amp", "sub_h/2"` → **2.41 mm deep**.
+
+Those are exactly the two fabrication fixes applied afterwards, and they move the
+match by ~1 dB. **feed3 is the built design**: its `Model.mod` is byte-identical
+(md5 `86a25313…`) to `work/zwfinal-fab.cst`, the project the STEP and the mould
+plates were exported from.
+
+> **Rule: to prove two CST projects are the same antenna, compare
+> `Model/3D/Model.mod`, not the parameter list.** A parameter sweep only varies
+> what the history exposes; everything else about the geometry is invisible to it.
+
+This cost a mislabelled figure: `sdd11-flat-vs-zwave.png` was first plotted from
+feed2 and captioned as the design's match.
+
+### CST stores no VSWR result item
+
+There is no `1D Results\VSWR\...` entry — CST renders VSWR on demand in the GUI
+from the S-parameters. An export script that walks the result tree therefore
+*cannot* produce one, and an earlier export shipped three `*-VSWR.png` files that
+were byte-identical copies of the corresponding `*-S11.png`. Compute it instead,
+and compute the **differential** one, since single-ended VSWR is as misleading
+here as single-ended S11:
+
+```
+VSWR_dd = (1 + |Sdd11|) / (1 - |Sdd11|)
+```
+
+At 2.44 GHz: **flat 2.07, z-wave 2.91**. `scripts/plot_sdd11_compare.py` emits it.
+
 ### Still to do before any of this is quoted
 
 The **−6.7 % strain drift was measured at sub_h = 4.0** and must NOT be carried

@@ -35,8 +35,10 @@ BASE = "1D Results\\S-Parameters\\"
 BLE_LO, BLE_HI = 2.400, 2.4835
 F0 = 2.44
 
-OUT = sys.argv[1] if len(sys.argv) > 1 else os.path.join(
-    ROOT, "deliverables", "cst", "sdd11-flat-vs-zwave.png")
+OUTDIR = sys.argv[1] if len(sys.argv) > 1 else os.path.join(
+    ROOT, "deliverables", "cst")
+OUT = os.path.join(OUTDIR, "sdd11-flat-vs-zwave.png")
+OUT_VSWR = os.path.join(OUTDIR, "vswr-flat-vs-zwave.png")
 
 
 def db(z):
@@ -133,3 +135,53 @@ ax.legend(loc="upper center", bbox_to_anchor=(0.5, -0.12), fontsize=9,
 fig.tight_layout()
 fig.savefig(OUT, dpi=150)
 print(f"wrote {OUT}")
+
+# ---------------------------------------------------------------- VSWR ------
+# CST stores no VSWR result item -- it renders VSWR on demand in the GUI, which
+# is why an earlier export produced "VSWR" PNGs that were byte-identical copies
+# of the S11 plots. Compute it instead, and compute the DIFFERENTIAL one: this
+# antenna is balanced, so single-ended VSWR is as misleading as single-ended S11.
+def vswr(y_db):
+    out = []
+    for d in y_db:
+        g = min(10 ** (d / 20.0), 0.999999)
+        out.append((1 + g) / (1 - g))
+    return out
+
+
+vf, vz = vswr(yf), vswr(yz)
+
+fig2, ax2 = plt.subplots(figsize=(10, 5.8))
+ax2.set_xlim(min(ff[0], fz[0]), max(ff[-1], fz[-1]))
+ax2.set_ylim(1.0, 12.0)
+ax2.axvspan(BLE_LO, BLE_HI, color="#3498db", alpha=0.15, zorder=0)
+ax2.annotate("BLE", xy=((BLE_LO + BLE_HI) / 2, 0.97),
+             xycoords=("data", "axes fraction"), ha="center", va="top",
+             fontsize=9, color="#1f6391", weight="bold")
+for lvl, lbl in ((2.0, "VSWR 2 (= -9.5 dB)"), (3.0, "VSWR 3 (= -6.0 dB)")):
+    ax2.axhline(lvl, color="#7f8c8d", lw=0.9, ls="--", zorder=1)
+    ax2.annotate(f"  {lbl}", xy=(0.0, lvl), xycoords=("axes fraction", "data"),
+                 va="bottom", ha="left", fontsize=8, color="#7f8c8d")
+
+ax2.plot(ff, vf, "-", color="#e74c3c", lw=2,
+         label="flat serpentine  serp_R 8.95, sub_h 1.95 mm")
+ax2.plot(fz, vz, "-", color="#27ae60", lw=2,
+         label="z-wave  serp_R 8.50, sub_h 6.51 mm, z_amp 1.004, z_cyc 24")
+for f, v, c in ((ff, vf, "#e74c3c"), (fz, vz, "#27ae60")):
+    val = at(f, v, F0)
+    ax2.plot([F0], [val], "o", color=c, ms=8, mec="white", mew=1.4, zorder=5)
+    ax2.annotate(f"{val:.2f}", (F0, val), textcoords="offset points",
+                 xytext=(10, -4), fontsize=10, color=c, weight="bold")
+
+ax2.set_xlabel("Frequency (GHz)")
+ax2.set_ylabel("Differential VSWR")
+ax2.set_title("Differential VSWR — final flat serpentine vs final z-wave\n"
+              "computed from $S_{dd11}$; CST stores no VSWR result item",
+              fontsize=11)
+ax2.grid(True, alpha=0.3)
+ax2.legend(loc="upper center", bbox_to_anchor=(0.5, -0.12), fontsize=9,
+           frameon=False, ncol=1)
+fig2.tight_layout()
+fig2.savefig(OUT_VSWR, dpi=150)
+print(f"wrote {OUT_VSWR}")
+print(f"VSWR @ 2.44 -- flat {at(ff, vf, F0):.2f}, z-wave {at(fz, vz, F0):.2f}")

@@ -18,9 +18,15 @@ Regenerate with `scripts/export_cst_plots.py` — caveats at the bottom.
 >    but this antenna **has no in-band dip by construction** (see below), so dip
 >    location is the wrong criterion. Judged at 2.44 GHz, feed3 beats feed2.
 >
-> Only `sdd11-flat-vs-zwave.png` has been regenerated. The `zwave-matched-*` and
-> `zwave-final-*` PNGs are unchanged and are now labelled for what they actually
-> show.
+> 3. **Every `*-VSWR.png` was a byte-identical copy of the matching `*-S11.png`.**
+>    Not a VSWR plot at all. **CST stores no VSWR result item** — it renders VSWR
+>    on demand in the GUI, so `export_cst_plots.py` could never have produced one,
+>    and the files were duplicated instead. All three have been **deleted** and
+>    replaced by `vswr-flat-vs-zwave.png`, computed from S<sub>dd11</sub>.
+>
+> `sdd11-flat-vs-zwave.png` and the VSWR figure are regenerated; `zwave-final-*`
+> is re-exported at the design point. The `zwave-matched-*` PNGs are unchanged and
+> are now labelled for what they actually show.
 
 ## Which antenna is in which figure
 
@@ -32,7 +38,9 @@ set in run 0 and stored combinations at higher ids.
 |---|---|---|---|---|---|---|---|
 | `flat-final-*.png` | `param-sim.cst` | 0 | 8.95 | 1.948 | — flat | full 2×SSMA | ✅ the flat design |
 | `sdd11-flat-vs-zwave.png` | `param-sim` + `zwave-feed3` | 0 + 10 | 8.95 / **8.50** | 1.948 / **6.508** | — / **1.004** | full 2×SSMA | ✅ **regenerated** |
-| `zwave-final-*.png` | `zwave-feed3.cst` | 0 | **8.3** | **6.461** | 0.980 | full 2×SSMA | ⚠️ right model, **wrong run** |
+| `vswr-flat-vs-zwave.png` | `param-sim` + `zwave-feed3` | 0 + 10 | 8.95 / **8.50** | 1.948 / **6.508** | — / **1.004** | full 2×SSMA | ✅ **new** |
+| `zwfinal-fab-*.png` | `zwfinal-fab.cst` | 0 | **8.50** | **6.508** | **1.004** | full 2×SSMA | ✅ **the design point** |
+| `zwave-final-*.png` | `zwave-feed3.cst` | **all 13** | 7.5–9.1 | 3.0 & ~6.5 | varies | full 2×SSMA | ❌ 13 curves overlaid |
 | `zwave-matched-*.png` | `zwave-feed2.cst` | 0 | 7.7 | 3.0 | 0.910 | 2×SSMA, **pre-fix** | ❌ superseded geometry |
 | `zwave-S11-all-strains.png` | `zwstrain85.cst` | 0–5 | 8.5 | 6.508 | 1.004 | **delta-gap, no SSMA** | ✅ strain only |
 | `zwave-radiation-efficiency.png` | `zwstrain85.cst` | 0–5 | 8.5 | 6.508 | 1.004 | delta-gap | ✅ strain only |
@@ -44,6 +52,35 @@ set in run 0 and stored combinations at higher ids.
 Shared across every row: `serp_n` 12, `amp_ratio` 0.2, `serp_ratio` 0.05,
 `chan_r` 0.25 mm, `feed_gap` 1.0 mm, `body_gap` 1.0 mm, phantom `skin_t` 2 /
 `fat_t` 5 / `musc_t` 70 mm.
+
+### The design point, from `zwfinal-fab.cst`
+
+| Quantity | Value |
+|---|---|
+| S<sub>dd11</sub> @ 2.44 GHz | **−6.22 dB** (worst across BLE −6.06 dB) |
+| Differential VSWR @ 2.44 | **2.91** |
+| Z<sub>diff</sub> @ 2.44 | 282.7 + 45.7j Ω |
+| Radiation efficiency @ 2.44 | **5.22 %** — *identical on both ports* |
+| Total efficiency, per port | 2.28 % (single-port drive — **not** the differential condition) |
+| **Delivered, differential** | 5.22 % × (1 − \|S<sub>dd11</sub>\|²) = 5.22 % × 0.761 = **3.97 %** |
+
+Both ports reporting **5.22 %** to three figures is the mirror-symmetry check: it
+is what confirms the `Cos` (even) z-wave preserved the `y = 0` plane the
+differential mode needs. An odd `Sin` wave gave 5.08 % / 5.15 %.
+
+> ⚠️ **Two traps in the exported `zwfinal-fab-*.png` files.**
+>
+> **`zwfinal-fab-S11.png` is single-ended**, and it dips to −17.5 dB at **1.89 GHz**.
+> That is *not* the antenna resonating in the wrong place — S₁₁ on one port of a
+> balanced pair is not this antenna's match. The differential quantity is in
+> `sdd11-flat-vs-zwave.png`. Do not put the single-ended plot on a slide without
+> that explanation; it invites exactly the wrong question.
+>
+> **The two efficiency PNGs are a single data point, not a curve.** CST computes
+> efficiency only where a farfield monitor exists, and this model has one, at
+> 2.44 GHz. The files are evidence that 5.22 % came from CST — **quote the number,
+> do not show the plot.** An efficiency-vs-frequency curve would need extra
+> farfield monitors and another ~13 min solve.
 
 > ⚠️ **`../strain-sweep.png` footnote.** The flat design's −8.8 % strain result — the
 > number that triggered the whole z-wave revival — was measured on an **earlier flat
@@ -120,7 +157,7 @@ Reads results only — **no CST licence needed**, no VPN. Writes
 The native CST renders need the GUI and a licence:
 
 ```bash
-python scripts/export_cst_plots.py work/param-sim.cst deliverables/cst
+python scripts/export_cst_plots.py work/zwfinal-fab.cst deliverables/cst
 ```
 
 Two traps it handles, both of which cost time to find:
@@ -131,10 +168,18 @@ Two traps it handles, both of which cost time to find:
    the first attempt produced a 16390×59395 image. The project must be open and
    activated.
 
-**Known gap:** `zwave-final-*.png` show feed3 **run 0** (`serp_R` 8.3, `sub_h`
-6.461), not the design point at run 10. Re-exporting them means opening
-`zwave-feed3.cst`, selecting run 10's parameter combination in the parametric
-result view, and re-running the export.
+**Why `zwfinal-fab.cst` and not `zwave-feed3.cst`.** Exporting a 1D result from a
+project that holds stored parameter combinations plots **every run at once** —
+`zwave-final-S11.png` is 13 unlabelled curves spanning `serp_R` 7.5–9.1 across two
+substrate families, which is why it cannot be used and why the earlier caption
+("run 0, `serp_R` 8.3") did not describe it.
+
+`zwfinal-fab.cst` is the fabrication project: its model history is **byte-identical**
+(md5 `86a25313…`) to `zwave-feed3.cst`, but it had never been solved, so it holds
+exactly **one** run. Solving it at the design point gives clean single-curve native
+plots *and* means the project the STEP was exported from now carries its own
+results. It reproduced feed3 run 10 exactly — S<sub>dd11</sub> −6.22 dB,
+Z<sub>diff</sub> 282.7 + 45.7j Ω — which is also a useful reproducibility check.
 
 ## Not included: farfield radiation patterns
 
