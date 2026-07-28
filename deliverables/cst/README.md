@@ -21,7 +21,27 @@ radiation efficiency ≈ 6 %**.
 > **S<sub>dd11</sub> = (S₁₁ − S₁₂ − S₂₁ + S₂₂)/2**, which is *not* any one curve on this plot. See
 > `../sdd11-final.png` for the differential result, and `docs/DESIGN-EVOLUTION.md` §4.
 
-## Z-wave design — `work/zwave-feed3.cst`
+## Z-wave, MATCHED — `work/zwave-feed2.cst`  ← use these
+
+`serp_R = 7.7 mm`, `sub_h = 3.0 mm`. **S<sub>dd11</sub> = −7.1 dB @ 2.476 GHz** — within 1.5 % of
+2.44 and inside the BLE band.
+
+| File | Shows |
+|---|---|
+| `zwave-matched-S11.png` | Raw 2-port S-parameters |
+| `zwave-matched-VSWR.png` | VSWR |
+| `zwave-matched-radiation-efficiency.png` | Radiation efficiency |
+| `zwave-matched-total-efficiency.png` | Total efficiency |
+| `sdd11-flat-vs-zwave.png` | **Differential S<sub>dd11</sub>, flat vs z-wave on one axis** |
+
+> ⚠️ `sub_h = 3.0 mm` here, **not** the 6.508 mm of the design the mould plates were generated for.
+> This is a matched z-wave, but at a thinner substrate than the final geometry.
+
+## Z-wave, MIS-TUNED — `work/zwave-feed3.cst`
+
+Thicker substrate (`sub_h = 6.46`, closer to the mould) but **S<sub>dd11</sub> min sits at
+2.843 GHz and only −5.9 dB at 2.44** — poorly matched. Kept for comparison; do not present as the
+design's performance.
 
 | File | Shows |
 |---|---|
