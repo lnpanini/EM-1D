@@ -134,7 +134,7 @@ term** and must not be presented as the z-wave's result.
 | **−10 dB bandwidth** | **none — never crosses −10 dB** | **none** |
 | Differential VSWR @ 2.45 | 2.91 | 2.07 |
 | Z<sub>diff</sub> @ 2.44 | 283 + 46j Ω | 68 + 52j Ω |
-| Radiation efficiency @ 2.44 | **5.22 %** | ≈ 6 % |
+| Radiation efficiency @ 2.44 | **5.22 %** (8.1 % at 1.8 GHz, 1.0 % at 3.2) | ≈ 6 % |
 | Delivered (differential) | **3.97 %** | ≈ 5.8 % |
 | Drift @ 20 % strain | **−7.82 %** | −10.38 % (matched control) |
 
@@ -222,6 +222,7 @@ Three things follow, and they are all slide-worthy:
 | `F2_deltaf_vs_strain_geometries.png/.csv` | **the controlled strain result** |
 | `F3_S11_zwave_flat.png/.csv` | z-wave baseline — **on-body**, not free space |
 | `F4_S11_zwave_strain.png/.csv` | S11 family at 0/5/10/15/20 % strain |
+| `F7_efficiency_vs_freq.png/.csv` | **Efficiency vs frequency, on body** — 15 farfield monitors |
 | `F12_body_setup.png` | **On-body setup diagram** — layer stack, thicknesses, ε/σ, separations |
 | `F13_S11_freespace_vs_onbody.png/.csv` | Free space vs on body |
 | `F14_efficiency_onbody.png/.csv` | **67.2 % → 5.22 %** — what the body costs |

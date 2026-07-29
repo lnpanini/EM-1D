@@ -520,8 +520,71 @@ def f18():
               [[f[k], y[k]] for k in range(len(f))])
 
 
+# ---------------------------------------------------------------- F7 -------
+def f7():
+    """Efficiency vs frequency, on body. Needs the 15-monitor re-solve.
+
+    CST's "total efficiency" is for SINGLE-PORT excitation with the other port
+    terminated, which is not how this antenna is driven. The meaningful curve for
+    a differential drive is rad_eff x (1 - |Sdd11|^2), derived here and labelled
+    as derived.
+    """
+    mod = _mod("zwfinal-fab.cst")
+
+    def eff(nm):
+        it = mod.get_result_item("1D Results\\Efficiencies\\" + nm, 0)
+        return [(float(a), 100 * abs(complex(b)))
+                for a, b in zip(it.get_xdata(), it.get_ydata())]
+
+    rad, tot = eff("Rad. Efficiency [1]"), eff("Tot. Efficiency [1]")
+    S = {}
+    for nm in ("S1,1", "S1,2", "S2,1", "S2,2"):
+        it = mod.get_result_item(SP + nm, 0)
+        S[nm] = ([float(x) for x in it.get_xdata()],
+                 [complex(y) for y in it.get_ydata()])
+    fs = S["S1,1"][0]
+    sdd = [(a - b - c + d) / 2 for a, b, c, d in
+           zip(S["S1,1"][1], S["S1,2"][1], S["S2,1"][1], S["S2,2"][1])]
+
+    def deliv(fq, r):
+        k = min(range(len(fs)), key=lambda i: abs(fs[i] - fq))
+        return r * (1 - abs(sdd[k]) ** 2)
+
+    dl = [(fq, deliv(fq, r)) for fq, r in rad]
+
+    fig, ax = plt.subplots(figsize=(10, 5.8))
+    ax.axvspan(BLE_LO, BLE_HI, color=C_BLE, alpha=0.15, zorder=0)
+    ax.axvline(F_MARK, color=FG, lw=0.9, ls=":", alpha=0.6)
+    series = [(rad, C_ZWAVE, "-", "Radiation efficiency"),
+              (dl, C_BODY, "-", "Delivered, differential (derived)"),
+              (tot, C_SERP, "--", "CST total efficiency (single-port drive)")]
+    for data, c, ls, lab in series:
+        xs = [p[0] for p in data]
+        ys = [p[1] for p in data]
+        ax.plot(xs, ys, ls, color=c, lw=2.3, marker="o", ms=5, label=lab)
+        k = min(range(len(xs)), key=lambda i: abs(xs[i] - 2.44))
+        ax.annotate(f"{ys[k]:.2f} %", (xs[k], ys[k]), textcoords="offset points",
+                    xytext=(8, 8), color=c, fontsize=11, weight="bold")
+    ax.set_xlim(1.8, 3.2)
+    ax.set_ylim(0, max(p[1] for p in rad) * 1.25)
+    ax.set_xlabel("Frequency (GHz)")
+    ax.set_ylabel("Efficiency (%)")
+    ax.set_title("Efficiency vs frequency, ON BODY — falls monotonically\n"
+                 "tissue absorption rises with frequency", fontsize=13)
+    ax.grid(True)
+    ax.legend(loc="upper right", framealpha=0.0, fontsize=10.5)
+    for s in ax.spines.values():
+        s.set_alpha(0.5)
+    save(fig, "F7_efficiency_vs_freq.png")
+    write_csv("F7_efficiency_vs_freq.csv",
+              ["freq_GHz", "radiation_eff_pct", "delivered_diff_pct_derived",
+               "cst_total_eff_pct_singleport"],
+              [[rad[i][0], rad[i][1], dl[i][1], tot[i][1]]
+               for i in range(len(rad))])
+
+
 print(f"writing to {OUT}")
-for fn in (f1, f2, f3, f4, f12, f13, f14, f15, f17, f18):
+for fn in (f1, f2, f3, f4, f7, f12, f13, f14, f15, f17, f18):
     try:
         fn()
     except SystemExit as exc:

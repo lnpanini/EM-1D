@@ -1,67 +1,63 @@
-# What could not be produced, and what each would cost
+# What exists, and what still doesn't
 
-Nothing here is invented. Where a model does not exist, this says so.
-One frequency-domain solve on the current mesh is **~13 minutes**.
+Updated 2026-07-29 after the free-space and farfield-monitor solves.
+One frequency-domain solve on the current mesh is **5–13 minutes**.
 
-## Does not exist at all — needs new models
+## ✅ Produced
 
-| Request | Status | Cost to produce |
+| Figure | Source | Note |
 |---|---|---|
-| **Free-space S11** (F3 baseline, items 8–10) | ❌ **no free-space model exists** — every solved project has the 3-layer phantom | 1 solve. Delete the tissue bricks, re-solve. **This is the one I would run first** — your VNA measurement was in free space, so nothing here is directly comparable to it |
-| **Bend / conformal** (F5, F6, items 17–21) | ❌ **never simulated.** `work/serp-bend.vba` exists but no bend project was ever built or solved | 4 solves per plane (flat, R = 50/30/20). 8 solves ≈ 2 h for both planes, plus macro work to wrap the geometry |
-| **Concentric-ring iteration** (F1 third trace) | ❌ **no CST model.** It exists only as a synthesis template in the web tool | 1 build + 1 solve, but the geometry would have to be re-derived |
-| **Tolerance sweeps** (F16, items 32–33) | ❌ not run | 12 solves ≈ 2.6 h (ε_r ±20 %, `sub_h` ±2 mm, path 95/90/85 %, channel ±20 %) |
-| **Antenna-to-skin separation sweep** (item 26) | ❌ not run | 4 solves ≈ 1 h. This is the evidence for the 6.5 mm thickness choice, which is currently asserted rather than shown |
-| **SAR** (item 25) | ❌ not computed in any current project | 1 solve with a SAR monitor + IEEE averaging setup |
+| `F1_S11_iterations` | `param-sim` + `zwave-feed3` r10 | **2 traces, not 3** — no concentric-ring model |
+| `F2_deltaf_vs_strain_geometries` | `zwstrain85` + `zwflatB` + `flex-strain` | the one **fully controlled** comparison |
+| `F3_S11_zwave_flat` | `zwave-feed3` r10 | **on-body** |
+| `F4_S11_zwave_strain` | `zwstrain85` | bare loop, delta-gap, resonates ~2.17 GHz |
+| `F7_efficiency_vs_freq` | `zwfinal-fab` (15 monitors) | rad / delivered / CST-total, on body |
+| `F12_body_setup` | drawn from the macro's parameters | layer stack, ε/σ, separations |
+| `F13_S11_freespace_vs_onbody` | `zwfree` + `zwave-feed3` r10 | |
+| `F14_efficiency_onbody` | both | **67.2 % → 5.22 %** |
+| `F15_smith_zwave` | `zwave-feed3` r10 | VSWR 2/3 circles |
+| `F17_loss_budget` | `zwave-feed3` r10 power results | where the 95 % goes |
+| `F18_simulated_vs_measured` | `zwfree` + supplied VNA points | model is **413 MHz low** |
 
-## Exists but not in usable form
+## ❌ Still missing — needs new models
 
-| Request | Status | Cost |
+| Request | Why | Cost |
 |---|---|---|
-| **Efficiency vs frequency** (F7, item 28) | ⚠️ **single point only.** Radiation efficiency is computed only where a farfield monitor exists, and the model has exactly one, at 2.44 GHz → 5.22 % | 1 re-solve with monitors every 50 MHz across 1.5–4.0 GHz |
-| **Gain vs frequency** (F8) | ⚠️ same single-monitor limitation | same solve as above |
-| **2D/3D patterns** (F9, F10, item 30) | ⚠️ **farfield results exist at 2.44 GHz** in `zwave-feed3` / `zwfinal-fab`, but `Plot.ExportImageToFile` and `Plot.StoreImage` are **not valid instructions in CST 2024**, so they cannot be exported programmatically | manual, ~30 s each: open project → select the farfield item → File → Export → Image |
-| **Surface current** (F11) | ⚠️ likely present as a 3D field result at 2.44 | manual export, same route |
-| **Peak gain / realised gain numbers** (item 28) | ⚠️ computable from the stored farfield, but not yet extracted | ~15 min of scripting, no solve |
-| **Smith chart** (F15) | ✅ **derivable now** from `F3_S11_zwave_flat.csv` — no solve needed | ~15 min |
+| **Bend / conformal** (F5, **F6**, items 17–21) | **never simulated.** `work/serp-bend.vba` exists but no bend project was built | 4 solves per plane; 8 ≈ 1.5 h, plus macro work to wrap the geometry |
+| **Concentric-ring iteration** (F1 third trace) | **no CST model** — web-tool synthesis template only | 1 build + 1 solve |
+| **Tolerance tornado** (F16, items 32–33) | not run | 12 solves ≈ 2 h |
+| **Skin-separation sweep** (item 26) | not run — this is the evidence for the 6.5 mm thickness choice, currently asserted | 4 solves ≈ 45 min |
+| **SAR** (item 25) | no SAR monitor in any project | 1 solve + IEEE averaging setup |
 
-## Produced, with caveats
+## ⚠️ Blocked by CST 2024, not by missing data
 
-| Figure | Caveat |
-|---|---|
-| `F1_S11_iterations` | **2 traces, not 3.** No concentric-ring model exists |
-| `F3_S11_zwave_flat` | **on-body, not free space.** Filename kept to match your request |
-| `F4_S11_zwave_strain` | **bare loop, delta-gap feed** (`zwstrain85`), not the SSMA-fed design. Resonates ~2.17 GHz, not 2.45 — the *percentage* shift is the result, not the absolute frequency |
-| `F2_deltaf_vs_strain` | ✅ the one fully controlled comparison — both sides identical except `z_amp` |
+**Gain and radiation patterns (F8, F9, F10, F11, item 28, item 30).**
 
-## F6 — the combined stretch + bend figure
+The farfield results **exist** — there are now 15 monitors from 1.8–3.2 GHz in
+`zwfinal-fab.cst`. Two independent obstacles:
 
-This was flagged as the most important figure in the request, and it **cannot be
-built**: there is no bend data at all. It needs the 8 bend solves above first.
+1. **`cst.results` exposes only 1D results.** After the 15-monitor solve, the tree
+   still shows zero farfield or gain entries. Efficiency came through because CST
+   files it under `1D Results\Efficiencies`; gain is not filed there.
+2. **`Plot.ExportImageToFile` and `Plot.StoreImage` are not valid instructions in
+   CST 2024**, so the pattern plots cannot be rendered programmatically either.
 
-One caution about the plan for it. The proposed conversion ε = t/(2R) with
-t = 6.5 mm gives 6.5 %, 10.8 %, 16.3 % at R = 50/30/20 mm — but that is the strain
-at the **outer surface** of the slab, while the conductor sits at the **mid-plane**,
-where bending strain is **zero** by definition. On a symmetric neutral axis a pure
-bend stretches the conductor far less than the surface formula suggests, so stretch
-and bend points would **not** be expected to collapse onto one line — and if they
-appear to, that is worth suspecting rather than celebrating. Bending also changes
-the body standoff, which moves resonance independently of any conductor strain.
+**The route that would work** is VBA `FarfieldPlot.CalculateList` / `GetList`,
+writing values to a text file from VBA and plotting them in Python. Not yet
+attempted — roughly an hour, no solve needed.
 
-Worth building, but frame it as *"do two deformation modes agree?"* rather than
-assuming they must.
+**Manual fallback**, ~30 s per figure: open the project, select the farfield item
+in the tree, **File → Export → Image**.
 
-## Model-setup screenshots (items 7, 12, 19, 24; F12)
+## A caution about F6, the combined stretch + bend figure
 
-Not produced. Geometry renders in this repo come from Python previews
-(`deliverables/zwave-geometry-preview.png`, `zwave-gutter-plates.png`), not from
-CST's 3D view — and CST 2024 blocks programmatic 3D image export by the same route
-that blocks the farfield export. Annotated setup figures (layer stack, dimensioned
-isometric, strain states side by side) need either manual CST screenshots or a
-purpose-built Python renderer.
+The proposed conversion ε = t/(2R) with t = 6.5 mm gives 6.5 %, 10.8 %, 16.3 % at
+R = 50/30/20 mm — but that is the strain at the **outer surface**, and the conductor
+sits at the **mid-plane, where bending strain is zero by definition**. A pure bend
+therefore stretches the conductor far less than the surface formula implies, so
+stretch and bend points should **not** be expected to collapse onto one line. If
+they appear to, suspect it. Bending also changes body standoff, which moves
+resonance independently of conductor strain.
 
-The **body model is fully specified** in `README.md` §2 — 3-layer flat phantom,
-skin 2 / fat 5 / muscle 70 mm, 110 × 110 mm in plan, 1.0 mm gap from substrate
-underside to skin (so **conductor-to-skin = 4.25 mm**), IT'IS/Gabriel values at
-2.45 GHz, open boundaries with λ/8 background spacing. That is enough to draw F12
-by hand without opening CST.
+Still worth building — but frame it as *"do two deformation modes agree?"*, not as
+a confirmation you expect to succeed.
