@@ -2,10 +2,24 @@
 
 Reproduce with `python scripts/explain_meas_gap.py`.
 
-**The fact to explain.** Measured (`harish003.set`, free space, single-ended)
-f₀ = **2.640 GHz**. Simulated (`zwfree.cst`, free space, single-ended)
-f₀ = **2.114 GHz**. The real device resonates **HIGH by 526 MHz (+24.9 %)**, and
-its dip is far shallower (−10.3 dB vs −33.4 dB) and broader.
+**The facts to explain.** There are **two measurements of the same prototype on the
+same day**, and they differ from each other as much as either differs from the model:
+
+| | `19018.set` **06:33 — best** | `harish003.set` 13:25 — degraded |
+|---|---|---|
+| f₀ | **2.5134 GHz** | 2.6400 GHz |
+| \|S11\| at f₀ | **−16.50 dB** | −10.28 dB |
+| −10 dB band | **2.4467–3.1267 GHz (680 MHz)** | 2.616–2.640 GHz (24 MHz) |
+| at 2.450 GHz | −10.30 dB | −9.15 dB |
+
+Simulated (`zwfree.cst`, free space, single-ended) f₀ = **2.114 GHz**.
+
+**Compare against the BEST trace** — a degraded device is not what the model is
+trying to predict. On that basis the real device resonates **HIGH by 399 MHz
+(+18.9 %)**, and its dip is shallower (−16.5 dB vs −33.4 dB).
+
+The 06:33 trace is the one described in the project brief (2.527 GHz, −16.2 dB,
+694 MHz band) — it matches to within the 6.7 MHz sweep resolution.
 
 These are two separate things to explain — **the frequency shift** and **the
 shallow dip** — and they have different causes. Don't blur them.
@@ -38,8 +52,8 @@ The modelled electrical length is `123.34 mm (in-plane) + 0.62 × 40.92 mm
 (out-of-plane, at the measured realisation factor α = 0.62) = 148.70 mm`. If the
 EGaIn never followed the crests — bridging straight across instead — the
 electrical length collapses to the in-plane **123.34 mm**, a ratio of 1.206, and
-predicts **f₀ = 2.549 GHz** against 2.640 measured. The residual 91 MHz (3.5 %) is
-comfortably inside the ε_eff and fill terms above.
+predicts **f₀ = 2.549 GHz** against **2.5134 GHz** measured. **A 36 MHz miss on a
+399 MHz gap.**
 
 **Why it is physically likely, not just arithmetically convenient:**
 
@@ -110,3 +124,35 @@ A different question, and mostly a **measurement-topology** one.
 electrically the *flat* design, and the strain-tolerance claim is untested in
 hardware. That is a real result about **manufacturability**, not a failure of the
 electromagnetics — and it points straight at the mould process as the thing to fix.
+
+
+---
+
+## Part 3 — the degradation between the two sweeps corroborates all of this
+
+Over about seven hours the same prototype went **2.5134 → 2.640 GHz (+127 MHz)**,
+match **−16.50 → −10.28 dB**, −10 dB bandwidth **680 → 24 MHz**.
+
+**The direction is the tell.** Frequency rose *and* the match worsened *and* the
+resonance broadened — together. That is the signature of **losing conductor path**,
+not of drift in permittivity or a thermal effect:
+
+- shorter conductor → higher f₀
+- thinner / necked / partly-broken conductor → more series resistance → shallower,
+  broader dip
+
+Quantitatively the extra shift needs L·√ε to fall a further **4.8 %**, about
+**7.1 mm** of electrical length lost between the two sweeps.
+
+**Plausible mechanisms, all the same family:** EGaIn receding from the crests as
+it settles or de-wets; gallium-oxide skin growing at the SSMA-pin-to-well contact;
+a slow leak or bubble migration in an unsealed channel.
+
+**This makes the primary hypothesis stronger, not weaker.** It is not just that the
+crests may never have filled — it is that the device is *visibly continuing to lose
+conductor* while sitting on the bench. Both observations point at the same place:
+**filling and sealing a Ø0.5 mm channel that undulates ±1 mm is the unsolved
+problem**, and it is a fabrication problem, not an electromagnetic one.
+
+**Present the 06:33 trace as the result**, and show the 13:25 trace as evidence of
+the failure mode. That is a stronger, more honest story than either one alone.

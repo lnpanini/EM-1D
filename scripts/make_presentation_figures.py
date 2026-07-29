@@ -593,51 +593,69 @@ def se_s11(proj, rid=0):
 
 def f19():
     """Measured vs simulated, SINGLE-ENDED S11 -- like-for-like at last."""
-    meas = os.path.join(OUT, "measured_S11.csv")
-    if not os.path.exists(meas):
-        raise SystemExit("run scripts/parse_zvh_set.py first")
-    with open(meas, encoding="utf-8") as fh:
-        rows = list(csv.reader(fh))[1:]
-    fm = [float(r[0]) for r in rows]
-    ym = [float(r[1]) for r in rows]
+    def load(name):
+        p = os.path.join(OUT, name)
+        if not os.path.exists(p):
+            raise SystemExit(f"missing {name} -- run scripts/parse_zvh_set.py")
+        with open(p, encoding="utf-8") as fh:
+            rows = list(csv.reader(fh))[1:]
+        return [float(r[0]) for r in rows], [float(r[1]) for r in rows]
 
+    fb_, yb_ = load("measured_S11_best.csv")      # 19018.set, 06:33
+    fd_, yd_ = load("measured_S11.csv")           # harish003.set, 13:25
     ffree, yfree = se_s11("zwfree.cst")
     fbody, ybody = se_s11("zwfinal-fab.cst")
 
-    fig, ax = plt.subplots(figsize=(10.5, 6.0))
-    dress(ax, xlo=1.5, xhi=4.0, ylab="$S_{11}$ (dB), single-ended, 50 Ω")
-    ax.plot(fm, ym, color=C_BODY, lw=2.6, label="MEASURED (ZVH8, cal, 201 pts)")
-    ax.plot(ffree, yfree, color=C_ZWAVE, lw=2.2, label="Simulated — free space")
-    ax.plot(fbody, ybody, color=C_SERP, lw=2.2, ls="--", label="Simulated — on body")
+    C_BEST, C_DEG = "#7CFC98", C_BODY
 
-    km = min(range(len(fm)), key=lambda k: ym[k])
-    ax.plot([fm[km]], [ym[km]], "v", color=C_BODY, ms=13, mec=FG, mew=1.2, zorder=6)
-    ax.annotate(f"measured $f_0$ = {fm[km]:.3f} GHz\n{ym[km]:.2f} dB",
-                (fm[km], ym[km]), textcoords="offset points", xytext=(12, -30),
-                color=C_BODY, fontsize=11.5, weight="bold")
+    fig, ax = plt.subplots(figsize=(11, 6.2))
+    dress(ax, xlo=1.5, xhi=4.0, ylab="$S_{11}$ (dB), single-ended, 50 Ω")
+    ax.plot(fb_, yb_, color=C_BEST, lw=2.6,
+            label="MEASURED — best, 06:33 (before degradation)")
+    ax.plot(fd_, yd_, color=C_DEG, lw=2.4,
+            label="MEASURED — later, 13:25 (degraded)")
+    ax.plot(ffree, yfree, color=C_ZWAVE, lw=2.2, label="Simulated — free space")
+    ax.plot(fbody, ybody, color=C_SERP, lw=2.0, ls="--",
+            label="Simulated — on body")
+
+    for f, y, c, dy in ((fb_, yb_, C_BEST, -34), (fd_, yd_, C_DEG, 12)):
+        k = min(range(len(f)), key=lambda i: y[i])
+        ax.plot([f[k]], [y[k]], "v", color=c, ms=13, mec=FG, mew=1.2, zorder=6)
+        ax.annotate(f"{f[k]:.3f} GHz\n{y[k]:.2f} dB", (f[k], y[k]),
+                    textcoords="offset points", xytext=(10, dy),
+                    color=c, fontsize=11, weight="bold")
     for f, y, c in ((ffree, yfree, C_ZWAVE), (fbody, ybody, C_SERP)):
         k = min(range(len(f)), key=lambda i: y[i])
         ax.annotate(f"{f[k]:.3f} GHz", (f[k], y[k]), textcoords="offset points",
                     xytext=(6, 8), color=c, fontsize=10.5, weight="bold")
 
-    ax.set_ylim(min(min(yfree), min(ybody), min(ym)) - 3, 0)
-    ax.set_title("Single-ended $S_{11}$ — measured vs simulated\n"
-                 "the model resonates LOW; neither is the differential quantity "
-                 "the design was tuned on", fontsize=12.5)
-    ax.legend(loc="lower right", framealpha=0.0, fontsize=10.5)
+    kb = min(range(len(fb_)), key=lambda i: yb_[i])
+    kd = min(range(len(fd_)), key=lambda i: yd_[i])
+    ax.annotate("", xy=(fd_[kd], -3.0), xytext=(fb_[kb], -3.0),
+                arrowprops=dict(arrowstyle="->", color=FG, lw=1.6))
+    ax.text((fb_[kb] + fd_[kd]) / 2, -2.3,
+            f"degradation: {1000*(fd_[kd]-fb_[kb]):+.0f} MHz, "
+            f"{yd_[kd]-yb_[kb]:+.1f} dB", ha="center", fontsize=10.5, color=FG)
+
+    ax.set_ylim(min(min(yfree), min(ybody), min(yb_)) - 3, 0)
+    ax.set_title("Single-ended $S_{11}$ — two measurements and the model\n"
+                 "the prototype drifted UP and lost match over one day; "
+                 "the model sits below both", fontsize=12.5)
+    ax.legend(loc="lower right", framealpha=0.0, fontsize=10)
     save(fig, "F19_S11_singleended_meas_vs_sim.png")
 
-    n = max(len(fm), len(ffree))
+    n = max(len(fb_), len(fd_), len(ffree))
+    def g(a, i):
+        return a[i] if i < len(a) else ""
     write_csv("F19_S11_singleended_meas_vs_sim.csv",
-              ["freq_GHz_measured", "S11_dB_measured",
+              ["freq_GHz_meas_best", "S11_dB_meas_best",
+               "freq_GHz_meas_degraded", "S11_dB_meas_degraded",
                "freq_GHz_sim", "S11_dB_sim_freespace", "S11_dB_sim_onbody"],
-              [[fm[i] if i < len(fm) else "", ym[i] if i < len(ym) else "",
-                ffree[i] if i < len(ffree) else "",
-                yfree[i] if i < len(yfree) else "",
-                ybody[i] if i < len(ybody) else ""] for i in range(n)])
-    print(f"      F19: measured f0 {fm[km]:.3f} GHz ({ym[km]:.2f} dB) | "
-          f"sim free {ffree[min(range(len(yfree)), key=lambda i: yfree[i])]:.3f} | "
-          f"sim body {fbody[min(range(len(ybody)), key=lambda i: ybody[i])]:.3f}")
+              [[g(fb_, i), g(yb_, i), g(fd_, i), g(yd_, i),
+                g(ffree, i), g(yfree, i), g(ybody, i)] for i in range(n)])
+    print(f"      F19: best {fb_[kb]:.4f} GHz ({yb_[kb]:.2f} dB) -> "
+          f"degraded {fd_[kd]:.4f} GHz ({yd_[kd]:.2f} dB) | "
+          f"sim free {ffree[min(range(len(yfree)), key=lambda i: yfree[i])]:.3f}")
 
 
 print(f"writing to {OUT}")

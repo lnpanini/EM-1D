@@ -1,9 +1,13 @@
 #!/usr/bin/env python3
 """How much of the measured-vs-simulated gap can each hypothesis actually explain?
 
-Measured (harish003.set, free space, single-ended): f0 = 2.640 GHz
-Simulated (zwfree.cst,   free space, single-ended): f0 = 2.114 GHz
-The real device resonates HIGH by 526 MHz (+24.9 %).
+Two measurements of the same prototype, same day:
+    19018.set     06:33  f0 = 2.5134 GHz at -16.50 dB   <- BEST, use this one
+    harish003.set 13:25  f0 = 2.6400 GHz at -10.28 dB   <- after degradation
+Simulated (zwfree.cst, free space, single-ended): f0 = 2.114 GHz.
+
+Compare against the BEST trace: a degraded device is not the thing the model is
+trying to predict. The real device resonates HIGH by 399 MHz (+18.9 %).
 
 For a loop, f ~ 1 / (L_elec * sqrt(eps_eff)). So resonating HIGH means the real
 device has a SHORTER electrical path, a LOWER effective permittivity, or both.
@@ -20,7 +24,8 @@ electrically realised.
 
 from __future__ import annotations
 
-F_SIM, F_MEAS = 2.114, 2.640
+F_SIM, F_MEAS = 2.114, 2.5134      # sim free space vs BEST measurement
+F_DEGRADED = 2.640                  # same prototype, 7 h later
 L_IN, L_3D = 123.34, 164.25
 ALPHA = 0.62
 EXCESS = L_3D - L_IN
@@ -67,6 +72,16 @@ print("-" * 82)
 combo = (L_model / L_IN) * (1.15 / 1.00) ** 0.5
 print(f"{'z-wave absent + eps_eff 1.15->1.00':<52} {combo:8.3f} "
       f"{F_SIM*combo:9.3f} {100*(F_SIM*combo-F_SIM)/(F_MEAS-F_SIM):8.0f} %")
+
+print(f"\nDEGRADATION over 7 h: f0 {F_MEAS:.4f} -> {F_DEGRADED:.4f} GHz "
+      f"({1000*(F_DEGRADED-F_MEAS):+.0f} MHz), match -16.50 -> -10.28 dB,")
+print("-10 dB bandwidth 680 -> 24 MHz. The DIRECTION is the tell: frequency rose")
+print("AND the match worsened, which is what losing conductor path does -- the")
+print("same mechanism as the primary hypothesis, still in progress.")
+extra = F_DEGRADED / F_MEAS
+print(f"That further shift needs L*sqrt(eps) down another "
+      f"{100*(1-1/extra):.1f} %, i.e. ~{L_model*(1-1/extra):.1f} mm of "
+      f"electrical length lost between the two sweeps.")
 
 print("\nNOTE on eps_eff: it cannot go below 1, so permittivity error alone can")
 print(f"explain at most {100*((1.25**0.5)-1)/(need-1):.0f} % of the gap even if the")
