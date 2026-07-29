@@ -658,8 +658,143 @@ def f19():
           f"sim free {ffree[min(range(len(yfree)), key=lambda i: yfree[i])]:.3f}")
 
 
+# --------------------------------------------------------------- F20 -------
+def f20():
+    """Side profile, unstretched vs stretched -- the length-conservation mechanism.
+
+    Geometry is the macro's own curve (see scripts/path_length_report.py), under
+    the same affine incompressible transform the CST strain macro applies:
+    lam_x = 1+e on x, lam_t = 1/sqrt(1+e) on y and z.
+    """
+    R, AMP, SKEW, NU, GAP = 8.5, 1.7, 0.425, 12, 1.0
+    Z_AMP, Z_CYC = 1.004, 24
+    STRAIN = 0.20
+    M = 6000
+
+    def curve(e):
+        lx, lt = 1 + e, 1 / math.sqrt(1 + e)
+        s0 = R + AMP + 2 * SKEW * NU
+        dg = min(GAP / s0, 0.6)
+        tA, tB = dg / 2, 2 * math.pi - dg / 2
+        pts = []
+        for i in range(M + 1):
+            t = tA + (tB - tA) * i / M
+            uu = R + AMP * math.sin(NU * t + math.pi / 2)
+            vv = SKEW * math.sin(2 * NU * t + math.pi)
+            ct, st = math.cos(t), math.sin(t)
+            pts.append((lx * (uu * ct + vv * st), lt * (uu * st - vv * ct),
+                        lt * Z_AMP * math.cos(Z_CYC * t)))
+        return pts
+
+    def unroll(pts):
+        """z against cumulative IN-PLANE arc length, and the two lengths."""
+        s, l3, out = 0.0, 0.0, []
+        for i, (x, y, z) in enumerate(pts):
+            if i:
+                px, py, pz = pts[i - 1]
+                s += math.dist((x, y), (px, py))
+                l3 += math.dist((x, y, z), (px, py, pz))
+            out.append((s, z))
+        return out, s, l3
+
+    a, sa, la = unroll(curve(0.0))
+    b, sb, lb = unroll(curve(STRAIN))
+    za, zb = Z_AMP, Z_AMP / math.sqrt(1 + STRAIN)
+
+    def max_slope_deg(prof):
+        m = 0.0
+        for i in range(1, len(prof)):
+            ds = prof[i][0] - prof[i - 1][0]
+            if ds > 1e-9:
+                m = max(m, abs((prof[i][1] - prof[i - 1][1]) / ds))
+        return math.degrees(math.atan(m))
+
+    fig = plt.figure(figsize=(12.4, 7.6))
+    gs = fig.add_gridspec(2, 1, height_ratios=[1.35, 1.0], hspace=0.42)
+
+    # --- top: three periods, unrolled, both states over each other ---
+    ax = fig.add_subplot(gs[0])
+    span = 3 * sa / Z_CYC
+    for prof, c, lab in ((a, C_ZWAVE, "0 % strain"),
+                         (b, C_BODY, f"{STRAIN*100:.0f} % strain")):
+        xs = [p[0] for p in prof if p[0] <= span * (1 + STRAIN)]
+        ys = [p[1] for p in prof if p[0] <= span * (1 + STRAIN)]
+        ax.plot(xs, ys, color=c, lw=3.0, label=lab, solid_capstyle="round")
+    ax.axhline(0, color=FG, lw=0.8, ls=":", alpha=0.5)
+
+    x0, x1 = 0.62, span * 0.52
+    ax.annotate("", xy=(x0, za), xytext=(x0, -za),
+                arrowprops=dict(arrowstyle="<->", color=C_ZWAVE, lw=1.8))
+    ax.text(x0, 1.24, f"{2*za:.3f} mm p–p", color=C_ZWAVE, fontsize=11.5,
+            ha="center", va="bottom", weight="bold")
+    ax.annotate("", xy=(x1, zb), xytext=(x1, -zb),
+                arrowprops=dict(arrowstyle="<->", color=C_BODY, lw=1.8))
+    ax.text(x1, 1.24, f"{2*zb:.3f} mm p–p  ({100*(zb/za-1):+.1f} %)",
+            color=C_BODY, fontsize=11.5, ha="center", va="bottom", weight="bold")
+
+    ax.set_xlabel("Position along the in-plane path (mm)")
+    ax.set_ylabel("z (mm)")
+    ax.set_xlim(0, span * (1 + STRAIN))
+    ax.set_ylim(-1.55, 1.95)
+    ax.set_title("Side profile of the channel, unrolled — stretching FLATTENS the "
+                 "wave and SPREADS it\nthe two cancel, so the conductor never gets "
+                 "longer", fontsize=13)
+    ax.grid(True)
+    ax.legend(loc="lower right", framealpha=0.0, ncol=2)
+    for s_ in ax.spines.values():
+        s_.set_alpha(0.5)
+
+    # --- bottom: the length bookkeeping ---
+    ax2 = fig.add_subplot(gs[1])
+    labels = ["In-plane path\n(what a flat loop has)",
+              "Out-of-plane\nexcess", "3D conductor\nlength"]
+    v0 = [sa, la - sa, la]
+    v1 = [sb, lb - sb, lb]
+    xpos = range(len(labels))
+    w = 0.36
+    ax2.bar([x - w / 2 for x in xpos], v0, w, color=C_ZWAVE, label="0 % strain")
+    ax2.bar([x + w / 2 for x in xpos], v1, w, color=C_BODY,
+            label=f"{STRAIN*100:.0f} % strain")
+    for x, (p, q) in enumerate(zip(v0, v1)):
+        pct = 100 * (q / p - 1)
+        ax2.text(x, max(p, q) + 5, f"{pct:+.2f} %", ha="center", fontsize=13,
+                 weight="bold", color=C_BODY if abs(pct) > 1 else C_BEST_OK)
+        ax2.text(x - w / 2, p / 2, f"{p:.1f}", ha="center", va="center",
+                 fontsize=10.5, color="#10243a", weight="bold")
+        ax2.text(x + w / 2, q / 2, f"{q:.1f}", ha="center", va="center",
+                 fontsize=10.5, color="#10243a", weight="bold")
+    ax2.set_xticks(list(xpos))
+    ax2.set_xticklabels(labels, fontsize=11)
+    ax2.set_ylabel("Length (mm)")
+    ax2.set_ylim(0, max(la, lb) * 1.22)
+    ax2.set_title("The in-plane path grows 6 %. The conductor does not.",
+                  fontsize=13)
+    ax2.grid(True, axis="y")
+    ax2.legend(loc="upper center", framealpha=0.0, ncol=2)
+    for s_ in ax2.spines.values():
+        s_.set_alpha(0.5)
+
+    save(fig, "F20_stretch_side_profile.png")
+    write_csv("F20_stretch_side_profile.csv",
+              ["quantity", "at_0pct", "at_20pct", "change_pct"],
+              [["z_amplitude_mm", za, zb, 100 * (zb / za - 1)],
+               ["peak_to_peak_z_mm", 2 * za, 2 * zb, 100 * (zb / za - 1)],
+               ["in_plane_path_mm", sa, sb, 100 * (sb / sa - 1)],
+               ["out_of_plane_excess_mm", la - sa, lb - sb,
+                100 * ((lb - sb) / (la - sa) - 1)],
+               ["conductor_3D_length_mm", la, lb, 100 * (lb / la - 1)],
+               ["max_wave_slope_deg", max_slope_deg(a), max_slope_deg(b),
+                100 * (max_slope_deg(b) / max_slope_deg(a) - 1)]])
+    print(f"      F20: z_amp {za:.3f}->{zb:.3f} mm ({100*(zb/za-1):+.1f} %), "
+          f"in-plane {sa:.2f}->{sb:.2f} ({100*(sb/sa-1):+.2f} %), "
+          f"3D {la:.2f}->{lb:.2f} ({100*(lb/la-1):+.3f} %), "
+          f"slope {max_slope_deg(a):.1f}->{max_slope_deg(b):.1f} deg")
+
+
+C_BEST_OK = "#7CFC98"
+
 print(f"writing to {OUT}")
-for fn in (f1, f2, f3, f4, f7, f12, f13, f14, f15, f17, f18, f19):
+for fn in (f1, f2, f3, f4, f7, f12, f13, f14, f15, f17, f18, f19, f20):
     try:
         fn()
     except SystemExit as exc:
