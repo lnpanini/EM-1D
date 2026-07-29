@@ -244,8 +244,118 @@ def f4():
     write_csv("F4_S11_zwave_strain.csv", ["strain_pct", "freq_GHz", "S11_dB"], rows)
 
 
+# --------------------------------------------------------------- F15 -------
+def f15():
+    """Smith chart of Zdiff, from the same run as F3. No solve needed."""
+    mod = _mod("zwave-feed3.cst")
+    for rid in sorted(mod.get_all_run_ids()):
+        pc = mod.get_parameter_combination(rid)
+        if pc.get("serp_R") is None or abs(float(pc["serp_R"]) - 8.5) > 1e-3:
+            continue
+        if abs(float(pc["sub_h"]) - 6.508) > 1e-3:
+            continue
+        S = {}
+        for nm in ("S1,1", "S1,2", "S2,1", "S2,2"):
+            it = mod.get_result_item(SP + nm, rid)
+            S[nm] = ([float(x) for x in it.get_xdata()],
+                     [complex(y) for y in it.get_ydata()])
+        break
+    else:
+        raise SystemExit("no matching run")
+    f = S["S1,1"][0]
+    sdd = [(a - b - c + d) / 2 for a, b, c, d in
+           zip(S["S1,1"][1], S["S1,2"][1], S["S2,1"][1], S["S2,2"][1])]
+
+    fig, ax = plt.subplots(figsize=(7.2, 7.2))
+    th = [i * math.pi / 180 for i in range(361)]
+    ax.plot([math.cos(t) for t in th], [math.sin(t) for t in th],
+            color=FG, lw=1.2, alpha=0.8)
+    for vswr in (2.0, 3.0):
+        r = (vswr - 1) / (vswr + 1)
+        ax.plot([r * math.cos(t) for t in th], [r * math.sin(t) for t in th],
+                color=FG, lw=0.9, ls="--", alpha=0.45)
+        ax.annotate(f"VSWR {vswr:.0f}", (0, r), color=FG, fontsize=9,
+                    alpha=0.6, ha="center", va="bottom")
+    ax.axhline(0, color=FG, lw=0.8, alpha=0.35)
+    ax.plot([z.real for z in sdd], [z.imag for z in sdd],
+            color=C_ZWAVE, lw=2.2, label="Z-wave, 1.5–3.2 GHz")
+    i = min(range(len(f)), key=lambda k: abs(f[k] - F_MARK))
+    ax.plot([sdd[i].real], [sdd[i].imag], "o", color=C_ZWAVE, ms=11,
+            mec=FG, mew=1.4, zorder=5)
+    z = 100 * (1 + sdd[i]) / (1 - sdd[i])
+    ax.annotate(f"2.45 GHz\n{z.real:.0f} {'+' if z.imag>=0 else '−'} "
+                f"{abs(z.imag):.0f}j Ω", (sdd[i].real, sdd[i].imag),
+                textcoords="offset points", xytext=(14, 4), color=C_ZWAVE,
+                fontsize=12, weight="bold")
+    ax.set_aspect("equal")
+    ax.set_xlim(-1.15, 1.15)
+    ax.set_ylim(-1.15, 1.15)
+    ax.axis("off")
+    ax.set_title("Differential reflection locus, 100 Ω reference\n"
+                 "the loop's closed impedance path", fontsize=13)
+    ax.legend(loc="lower left", framealpha=0.0)
+    save(fig, "F15_smith_zwave.png")
+    write_csv("F15_smith_zwave.csv",
+              ["freq_GHz", "Sdd11_real", "Sdd11_imag", "Zdiff_real", "Zdiff_imag"],
+              [[f[k], sdd[k].real, sdd[k].imag,
+                (100 * (1 + sdd[k]) / (1 - sdd[k])).real,
+                (100 * (1 + sdd[k]) / (1 - sdd[k])).imag] for k in range(len(f))])
+
+
+# --------------------------------------------------------------- F17 -------
+def f17():
+    """Where the accepted power goes at 2.44 GHz -- the loss budget."""
+    mod = _mod("zwave-feed3.cst")
+    exc = "1D Results\\Power\\Excitation [1]\\"
+
+    def at(path, rid=10):
+        it = mod.get_result_item(exc + path, rid)
+        xs = [float(x) for x in it.get_xdata()]
+        ys = [abs(complex(y)) for y in it.get_ydata()]
+        k = min(range(len(xs)), key=lambda i: abs(xs[i] - 2.44))
+        return ys[k]
+
+    acc = at("Power Accepted")
+    parts = [
+        ("Radiated", at("Power Radiated"), C_ZWAVE),
+        ("Muscle", at("Loss per Material\\Volume loss in Muscle"), C_BODY),
+        ("Skin", at("Loss per Material\\Volume loss in Skin"), "#ffab91"),
+        ("Fat", at("Loss per Material\\Volume loss in Fat"), "#ffccbc"),
+        ("Ecoflex (tan δ)", at("Loss per Material\\Volume loss in Substrate Material"), C_SERP),
+        ("EGaIn conductor", at("Loss per Material\\Metal loss in EGaIn"), C_CONC),
+    ]
+    fig, ax = plt.subplots(figsize=(11, 3.8))
+    left = 0.0
+    for lab, v, c in parts:
+        pct = 100 * v / acc
+        ax.barh([0], [pct], left=left, color=c, edgecolor="none", height=0.5)
+        mid = left + pct / 2
+        if pct >= 12:                      # roomy: label inside the block
+            ax.text(mid, 0, f"{lab}\n{pct:.1f} %", ha="center", va="center",
+                    fontsize=11, color="#10243a", weight="bold")
+        else:                              # narrow: label below, with a leader
+            ax.annotate(f"{lab}\n{pct:.1f} %", xy=(mid, -0.26),
+                        xytext=(mid, -0.60), ha="center", va="top",
+                        fontsize=10, color=c, weight="bold",
+                        arrowprops=dict(arrowstyle="-", color=c, lw=1.0))
+        left += pct
+    ax.set_xlim(0, 100)
+    ax.set_ylim(-0.95, 0.40)
+    ax.set_yticks([])
+    ax.set_xlabel("Share of accepted power (%)")
+    ax.set_title("Where the power goes at 2.44 GHz — only 5.2 % radiates.\n"
+                 "Tissue absorbs 66.8 %; Ecoflex loses 5× more than the EGaIn.",
+                 fontsize=13)
+    ax.grid(True, axis="x")
+    for s in ax.spines.values():
+        s.set_alpha(0.5)
+    save(fig, "F17_loss_budget.png")
+    write_csv("F17_loss_budget.csv", ["channel", "watts", "pct_of_accepted"],
+              [[lab, v, 100 * v / acc] for lab, v, _ in parts])
+
+
 print(f"writing to {OUT}")
-for fn in (f1, f2, f3, f4):
+for fn in (f1, f2, f3, f4, f15, f17):
     try:
         fn()
     except SystemExit as exc:

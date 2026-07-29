@@ -144,7 +144,40 @@ term** and must not be presented as the z-wave's result.
 
 All figures are **on-body**. There is **no free-space model in this repo.**
 
-## 6. Files
+## 6. Where the power goes — item 29 answered, and not as expected
+
+`scripts/loss_budget.py`, at 2.44 GHz, as a share of **accepted** power:
+
+| Channel | Share |
+|---|---|
+| **Radiated** | **5.22 %** |
+| Muscle | 37.03 % |
+| Skin | 24.52 % |
+| Fat | 5.24 % |
+| **Tissue total** | **66.79 %** |
+| **Ecoflex dielectric (tan δ)** | **23.34 %** |
+| **EGaIn conductor** | **4.65 %** |
+
+**Your expectation was that EGaIn's conductivity would matter most. It matters
+least.** Of the two antenna-material loss channels, **Ecoflex dielectric loss beats
+EGaIn conductor loss by 5×** (23.3 % vs 4.65 %) — and both are dwarfed by tissue
+absorption at 66.8 %.
+
+Three things follow, and they are all slide-worthy:
+
+1. **This antenna is absorption-limited, not conductor-limited.** Swapping EGaIn for
+   copper would recover at most ~4.4 points of the 95 % that does not radiate.
+   Arguing about EGaIn's 17×-worse conductivity is arguing about the smallest term.
+2. **The 5.22 % radiation efficiency is mostly physics, not a design failure.** Any
+   antenna 4.25 mm from muscle at 2.45 GHz pays this. It is worth saying out loud
+   before someone asks why the number is so low.
+3. ⚠️ **The most consequential unverified number in the whole model is `tan δ`.** It
+   controls the second-largest loss channel, the model uses **0.03**, your deck says
+   **0.015**, and neither is cited. If 0.015 is right, dielectric loss roughly halves
+   and radiation efficiency rises materially. **Get a real reference for this before
+   presenting any efficiency number.**
+
+## 7. Files
 
 | File | Contents |
 |---|---|
@@ -152,5 +185,7 @@ All figures are **on-body**. There is **no free-space model in this repo.**
 | `F2_deltaf_vs_strain_geometries.png/.csv` | **the controlled strain result** |
 | `F3_S11_zwave_flat.png/.csv` | z-wave baseline — **on-body**, not free space |
 | `F4_S11_zwave_strain.png/.csv` | S11 family at 0/5/10/15/20 % strain |
+| `F15_smith_zwave.png/.csv` | Differential reflection locus, 100 Ω, VSWR 2/3 circles |
+| `F17_loss_budget.png/.csv` | **Where the accepted power goes** — see §6 |
 
 See **`MISSING.md`** for the figures that could not be produced and what each costs.
