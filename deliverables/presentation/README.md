@@ -142,7 +142,44 @@ term** and must not be presented as the z-wave's result.
 > −10 dB bandwidth. Do not put a bandwidth or a Q number on a slide. The honest
 > statement is *"S<sub>dd11</sub> ≈ −6 dB, flat across BLE, 1.2 dB mismatch loss"*.
 
-All figures are **on-body**. There is **no free-space model in this repo.**
+### Free space vs on body (`work/zwfree.cst`, solved 2026-07-29)
+
+| Quantity @ 2.45 GHz | Free space | On body |
+|---|---|---|
+| S<sub>dd11</sub> | −4.71 dB | **−6.26 dB** |
+| Z<sub>diff</sub> | 96 + 140j Ω | 283 + 46j Ω |
+| **Radiation efficiency** | **67.2 %** | **5.22 %** |
+
+**The body costs 62 points of radiation efficiency — a 12.8× drop** — and this is
+the number that makes the wearable case. It also independently confirms the loss
+budget in §6: tissue absorbs 66.8 %, and 5.22 + 66.8 ≈ 72 %, close to the 67.2 %
+that radiates once the tissue is gone.
+
+Note the direction of the match: **body loading *improves* S<sub>dd11</sub>**
+(−4.71 → −6.26 dB), because tissue loss adds series resistance. Better match,
+far worse efficiency. That is the trade to present.
+
+### Simulated vs measured — the honest comparison (F18)
+
+| | Simulated (free space, single-ended) | Measured |
+|---|---|---|
+| f₀ | **2.114 GHz** | **2.527 GHz** |
+| \|S11\| at f₀ | −33.4 dB | −16.2 dB |
+
+**The model resonates 413 MHz (16 %) LOW.** Do not paper over this. Three things
+to say about it, in order:
+
+1. **They are not like-for-like.** The measurement is single-ended on one SMA; the
+   design quantity is differential S<sub>dd11</sub>. A single-ended port on a
+   balanced antenna sees a different resonance — the free-space single-ended dip at
+   2.114 GHz is not the differential operating point.
+2. **The measurement's own cable sensitivity is the same size as the disagreement.**
+   Metal contact near the coax moved f₀ by **381 MHz**; the sim-vs-measured gap is
+   **413 MHz**. An unquantified common-mode path can account for most of it.
+3. **ε_r and tan δ are uncited** (§2). Resonance scales as 1/√ε_eff, so a modest
+   error in ε_r moves f₀ by exactly this order.
+
+The model has **not** been tuned toward the measurement, per instruction.
 
 ## 6. Where the power goes — item 29 answered, and not as expected
 
@@ -185,7 +222,11 @@ Three things follow, and they are all slide-worthy:
 | `F2_deltaf_vs_strain_geometries.png/.csv` | **the controlled strain result** |
 | `F3_S11_zwave_flat.png/.csv` | z-wave baseline — **on-body**, not free space |
 | `F4_S11_zwave_strain.png/.csv` | S11 family at 0/5/10/15/20 % strain |
+| `F12_body_setup.png` | **On-body setup diagram** — layer stack, thicknesses, ε/σ, separations |
+| `F13_S11_freespace_vs_onbody.png/.csv` | Free space vs on body |
+| `F14_efficiency_onbody.png/.csv` | **67.2 % → 5.22 %** — what the body costs |
 | `F15_smith_zwave.png/.csv` | Differential reflection locus, 100 Ω, VSWR 2/3 circles |
+| `F18_simulated_vs_measured.png/.csv` | Simulated vs your VNA points, with caveats |
 | `F17_loss_budget.png/.csv` | **Where the accepted power goes** — see §6 |
 
 See **`MISSING.md`** for the figures that could not be produced and what each costs.

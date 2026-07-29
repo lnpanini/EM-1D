@@ -1,4 +1,9 @@
 geometry,strain_pct,f0_GHz,delta_f_pct
+Iteration-2 serpentine,0.0,2.464,0.0
+Iteration-2 serpentine,5.0,2.406,-2.353896103896097
+Iteration-2 serpentine,10.0,2.352,-4.545454545454549
+Iteration-2 serpentine,15.0,2.298,-6.737012987012985
+Iteration-2 serpentine,20.0,2.248,-8.766233766233755
 Flat control,0.0,2.62,0.0
 Flat control,5.0,2.56,-2.2900763358778646
 Flat control,10.0,2.46,-6.106870229007638

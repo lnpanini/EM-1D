@@ -174,9 +174,11 @@ def f1():
 # ---------------------------------------------------------------- F2 --------
 def f2():
     zw, fl = s11_by_strain("zwstrain85.cst"), s11_by_strain("zwflatB.cst")
-    fig, ax = plt.subplots(figsize=(9, 5.6))
+    it2 = s11_by_strain("flex-strain.cst")   # the tuned iteration-2 serpentine
+    fig, ax = plt.subplots(figsize=(9.4, 5.8))
     rows = []
-    for data, c, lab in ((fl, C_SERP, "Flat control ($z_{amp}$ = 0)"),
+    for data, c, lab in ((it2, C_CONC, "Iteration-2 serpentine (own design point)"),
+                         (fl, C_SERP, "Flat control ($z_{amp}$ = 0, matched)"),
                          (zw, C_ZWAVE, "Z-wave ($z_{amp}$ = 1.004 mm)")):
         ss = sorted(data)
         f0 = dip(*data[ss[0]])[0]
@@ -354,8 +356,172 @@ def f17():
               [[lab, v, 100 * v / acc] for lab, v, _ in parts])
 
 
+# --------------------------------------------------------------- F13 -------
+def f13():
+    """Free space vs on-body -- the wearable-antenna trade, in one figure."""
+    ff, yf = sdd11("zwfree.cst", serp_R=8.5, sub_h=6.508)
+    fb, yb = sdd11("zwave-feed3.cst", serp_R=8.5, sub_h=6.508)
+    fig, ax = plt.subplots(figsize=(10, 5.6))
+    dress(ax)
+    for f, y, c, lab in ((ff, yf, C_ZWAVE, "Free space"),
+                         (fb, yb, C_BODY, "On body (skin/fat/muscle)")):
+        i = min(range(len(f)), key=lambda k: abs(f[k] - F_MARK))
+        ax.plot(f, y, color=c, lw=2.3, label=f"{lab}   {y[i]:.2f} dB @ 2.45 GHz")
+        ax.plot([f[i]], [y[i]], "o", color=c, ms=8, mec=FG, mew=1.1, zorder=5)
+    ax.set_title("Body loading IMPROVES the match while destroying efficiency\n"
+                 "tissue loss adds series resistance", fontsize=13)
+    ax.legend(loc="lower right", framealpha=0.0)
+    save(fig, "F13_S11_freespace_vs_onbody.png")
+    n = min(len(ff), len(fb))
+    write_csv("F13_S11_freespace_vs_onbody.csv",
+              ["freq_GHz", "Sdd11_dB_freespace", "Sdd11_dB_onbody"],
+              [[ff[i], yf[i], yb[i]] for i in range(n)])
+
+
+# --------------------------------------------------------------- F14 -------
+def f14():
+    """Radiation efficiency, free space vs on body, at 2.44 GHz."""
+    def eff(proj, rid):
+        it = _mod(proj).get_result_item(
+            "1D Results\\Efficiencies\\Rad. Efficiency [1]", rid)
+        return 100 * abs(complex(list(it.get_ydata())[0]))
+
+    free = eff("zwfree.cst", 0)
+    body = eff("zwave-feed3.cst", 10)
+    fig, ax = plt.subplots(figsize=(7.6, 5.2))
+    bars = ax.bar(["Free space", "On body"], [free, body],
+                  color=[C_ZWAVE, C_BODY], width=0.55)
+    for b, v in zip(bars, (free, body)):
+        ax.text(b.get_x() + b.get_width() / 2, v + 1.6, f"{v:.1f} %",
+                ha="center", fontsize=15, weight="bold",
+                color=C_ZWAVE if v == free else C_BODY)
+    ax.annotate("", xy=(1, body), xytext=(1, free),
+                arrowprops=dict(arrowstyle="<->", color=FG, lw=1.6))
+    ax.text(1.06, (free + body) / 2, f"{free/body:.1f}× drop\n"
+            f"{free-body:.1f} points absorbed\nby tissue",
+            va="center", fontsize=11.5, color=FG)
+    ax.set_ylabel("Radiation efficiency at 2.44 GHz (%)")
+    ax.set_ylim(0, max(free, body) * 1.28)
+    ax.set_title("What the body costs", fontsize=14)
+    ax.grid(True, axis="y")
+    for s in ax.spines.values():
+        s.set_alpha(0.5)
+    save(fig, "F14_efficiency_onbody.png")
+    write_csv("F14_efficiency_onbody.csv",
+              ["case", "radiation_efficiency_pct_at_2p44GHz"],
+              [["free space", free], ["on body", body]])
+
+
+# --------------------------------------------------------------- F12 -------
+def f12():
+    """Body-model setup diagram, drawn from the macro's own parameters."""
+    sub_h, z_amp, gap = 6.508, 1.004, 1.0
+    skin_t, fat_t, musc_show = 2.0, 5.0, 12.0
+    half_w = 30.0
+    z_sub_t, z_sub_b = sub_h / 2, -sub_h / 2
+    z_sk_t = z_sub_b - gap
+    z_sk_b, z_ft_b = z_sk_t - skin_t, z_sk_t - skin_t - fat_t
+    z_ms_b = z_ft_b - musc_show
+
+    fig, ax = plt.subplots(figsize=(11, 6.4))
+    layers = [
+        ("Muscle", z_ms_b, z_ft_b, "#c0564a", "ε 52.7   σ 1.74 S/m   70 mm"),
+        ("Fat", z_ft_b, z_sk_b, "#f0d9a8", "ε 5.28   σ 0.102 S/m   5 mm"),
+        ("Skin", z_sk_b, z_sk_t, "#e2a07a", "ε 38.0   σ 1.46 S/m   2 mm"),
+    ]
+    for nm, zb, zt, c, txt in layers:
+        ax.add_patch(plt.Rectangle((-half_w, zb), 2 * half_w, zt - zb,
+                                   facecolor=c, alpha=0.75, edgecolor=FG, lw=0.8))
+        ax.text(-half_w + 1.5, (zb + zt) / 2, f"{nm}", fontsize=13,
+                weight="bold", color="#10243a", va="center")
+        ax.text(half_w - 1.5, (zb + zt) / 2, txt, fontsize=10.5,
+                color="#10243a", va="center", ha="right")
+    ax.add_patch(plt.Rectangle((-half_w, z_sub_b), 2 * half_w, sub_h,
+                               facecolor="#f7c9b8", alpha=0.55,
+                               edgecolor=FG, lw=1.0))
+    ax.text(-half_w + 1.5, 0, "Ecoflex substrate", fontsize=13, weight="bold",
+            color="#10243a", va="center")
+    ax.text(half_w - 1.5, 0, "ε 2.6   tan δ 0.03   6.508 mm", fontsize=10.5,
+            color="#10243a", va="center", ha="right")
+
+    xs = [-20.4 / 2 + i * 20.4 / 200 for i in range(201)]
+    zc = [z_amp * math.cos(2 * math.pi * 3 * (x + 10.2) / 20.4) for x in xs]
+    ax.plot(xs, zc, color=C_ZWAVE, lw=3.4, solid_capstyle="round",
+            label="EGaIn channel, Ø0.5 mm (z-wave, ±1.004 mm)")
+
+    # dimensions live OUTSIDE the slab so they cannot collide with layer text
+    xg = -half_w - 5
+    ax.annotate("", xy=(xg, z_sub_b), xytext=(xg, z_sk_t),
+                arrowprops=dict(arrowstyle="<->", color=FG, lw=1.5))
+    ax.text(xg - 1.2, (z_sub_b + z_sk_t) / 2, "1.0 mm\nair gap", fontsize=10.5,
+            color=FG, va="center", ha="right")
+    xc = half_w + 5
+    ax.annotate("", xy=(xc, 0), xytext=(xc, z_sk_t),
+                arrowprops=dict(arrowstyle="<->", color=C_ZWAVE, lw=1.5))
+    ax.text(xc + 1.2, z_sk_t / 2, "conductor → skin\n4.25 mm", fontsize=10.5,
+            color=C_ZWAVE, va="center", ha="left")
+
+    ax.set_xlim(-half_w - 18, half_w + 26)
+    ax.set_ylim(z_ms_b - 1, z_sub_t + 5)
+    ax.set_xlabel("x (mm)   —   phantom is 110 × 110 mm in plan")
+    ax.set_ylabel("z (mm)")
+    ax.set_title("On-body simulation setup — 3-layer flat phantom\n"
+                 "tissue values IT'IS/Gabriel at 2.45 GHz; open boundaries, "
+                 "λ/8 background", fontsize=13)
+    ax.legend(loc="upper left", framealpha=0.0, fontsize=10.5)
+    ax.grid(True, alpha=0.15)
+    for s in ax.spines.values():
+        s.set_alpha(0.5)
+    ax.text(0, z_ms_b - 0.4, "muscle continues to 70 mm (truncated for clarity)",
+            fontsize=9.5, color=FG, alpha=0.75, ha="center", va="top")
+    save(fig, "F12_body_setup.png")
+
+
+# --------------------------------------------------------------- F18 -------
+def f18():
+    """Simulated vs measured -- like-for-like, single-ended, free space."""
+    mod = _mod("zwfree.cst")
+    it = mod.get_result_item(SP + "S1,1", 0)
+    f = [float(x) for x in it.get_xdata()]
+    y = [db(complex(v)) for v in it.get_ydata()]
+
+    M_F0, M_S11, M_LO, M_HI, M_AT245 = 2.527, -16.2, 2.438, 3.132, -11.1
+
+    fig, ax = plt.subplots(figsize=(10, 5.8))
+    dress(ax, ylab="$S_{11}$ (dB), single-ended, 50 Ω")
+    ax.plot(f, y, color=C_ZWAVE, lw=2.3, label="Simulated — free space, port 1")
+    ax.axvspan(M_LO, M_HI, color=C_BODY, alpha=0.13, zorder=0)
+    ax.plot([M_F0], [M_S11], "v", color=C_BODY, ms=14, mec=FG, mew=1.2,
+            zorder=6, label=f"Measured $f_0$ = {M_F0} GHz, {M_S11} dB")
+    ax.plot([2.450], [M_AT245], "s", color=C_BODY, ms=10, mec=FG, mew=1.1,
+            zorder=6, label=f"Measured @ 2.450 GHz = {M_AT245} dB")
+    ax.annotate(f"measured −10 dB band  {M_LO}–{M_HI} GHz",
+                xy=((M_LO + M_HI) / 2, -1.4), color=C_BODY, fontsize=10.5,
+                ha="center", weight="bold")
+    i = min(range(len(f)), key=lambda k: abs(f[k] - 2.450))
+    ax.plot([f[i]], [y[i]], "o", color=C_ZWAVE, ms=9, mec=FG, mew=1.2, zorder=6)
+    ks = min(range(len(f)), key=lambda k: y[k])
+    ax.annotate(f"simulated $f_0$ = {f[ks]:.3f} GHz\n"
+                f"{f[ks]-M_F0:+.3f} GHz vs measured",
+                xy=(f[ks], y[ks]), textcoords="offset points", xytext=(10, 14),
+                color=C_ZWAVE, fontsize=11, weight="bold")
+    ax.set_ylim(min(y) - 4, 0)
+    ax.set_title("Simulated vs measured — the model resonates "
+                 f"{abs(f[ks]-M_F0)*1000:.0f} MHz LOW\n"
+                 "and the two are not yet like-for-like — see caveats",
+                 fontsize=13)
+    ax.legend(loc="lower right", framealpha=0.0, fontsize=10)
+    print(f"      F18: simulated free-space single-ended f0 = {f[ks]:.3f} GHz "
+          f"({y[ks]:.1f} dB); measured {M_F0} GHz ({M_S11} dB); "
+          f"delta {1000*(f[ks]-M_F0):+.0f} MHz")
+    save(fig, "F18_simulated_vs_measured.png")
+    write_csv("F18_simulated_vs_measured.csv",
+              ["freq_GHz", "S11_dB_simulated_freespace_singleended"],
+              [[f[k], y[k]] for k in range(len(f))])
+
+
 print(f"writing to {OUT}")
-for fn in (f1, f2, f3, f4, f15, f17):
+for fn in (f1, f2, f3, f4, f12, f13, f14, f15, f17, f18):
     try:
         fn()
     except SystemExit as exc:
