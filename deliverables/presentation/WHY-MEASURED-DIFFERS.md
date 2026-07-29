@@ -30,23 +30,28 @@ shallow dip** — and they have different causes. Don't blur them.
 
 For a loop, *f* ∝ 1 / (L_elec · √ε_eff). Resonating high means a **shorter
 electrical path**, a **lower effective permittivity**, or both. The measurement
-implies L·√ε_eff is only **80.1 %** of the model's.
+implies L·√ε_eff is only **84.1 %** of the model's.
 
 | Hypothesis | *f* ratio | predicted f₀ | explains |
 |---|---|---|---|
-| **Z-wave not electrically realised** | 1.206 | 2.549 GHz | **83 %** |
-| Conductor only 85 % filled | 1.176 | 2.487 GHz | 71 % |
-| ε_eff 1.25 → 1.00 (physical floor) | 1.118 | 2.364 GHz | 47 % |
-| Conductor only 90 % filled | 1.111 | 2.349 GHz | 45 % |
-| ε_eff 1.15 → 1.00 | 1.072 | 2.267 GHz | 29 % |
-| Conductor 95 % filled | 1.053 | 2.225 GHz | 21 % |
-| Part cast 5 % undersize | 1.053 | 2.225 GHz | 21 % |
-| Part cast 3 % undersize | 1.031 | 2.179 GHz | 12 % |
+| **Z-wave not electrically realised** | 1.206 | **2.549 GHz** | **109 %** |
+| Conductor only 85 % filled | 1.176 | 2.487 GHz | 93 % |
+| ε_eff 1.25 → 1.00 (physical floor) | 1.118 | 2.364 GHz | 62 % |
+| Conductor only 90 % filled | 1.111 | 2.349 GHz | 59 % |
+| ε_eff 1.15 → 1.00 | 1.072 | 2.267 GHz | 38 % |
+| Conductor 95 % filled | 1.053 | 2.225 GHz | 28 % |
+| Part cast 5 % undersize | 1.053 | 2.225 GHz | 28 % |
+| Part cast 3 % undersize | 1.031 | 2.179 GHz | 16 % |
+
+> **The lead hypothesis lands almost exactly.** It predicts **2.549 GHz** against
+> **2.5134 GHz** measured — a **36 MHz (1.4 %) miss on a 399 MHz gap**. Against the
+> *degraded* trace the same hypothesis explained only 83 %; against the good one it
+> is essentially the whole shift.
 
 ### The leading explanation: air trapped at the z-wave crests
 
-**This single mechanism accounts for 83 % of the shift, and it is the failure mode
-this geometry was always most likely to have.**
+**This single mechanism accounts for essentially all of the shift, and it is the
+failure mode this geometry was always most exposed to.**
 
 The modelled electrical length is `123.34 mm (in-plane) + 0.62 × 40.92 mm
 (out-of-plane, at the measured realisation factor α = 0.62) = 148.70 mm`. If the
@@ -77,12 +82,12 @@ part, or weigh the injected EGaIn against the channel volume
 
 **ε_r error alone cannot do it.** ε_eff cannot go below 1. Even taking the model's
 free-space ε_eff at a generous 1.25, driving it to the physical floor buys only
-**47 %** of the shift. Ecoflex permittivity error is a real contributor — and the
+**62 %** of the shift. Ecoflex permittivity error is a real contributor — and the
 value is uncited (§2 of the README) — but it is arithmetically incapable of being
 the whole story.
 
 **Dimensional shrinkage is too small.** Silicone cure shrinkage is typically
-< 1–2 % linear; even 5 % explains only 21 %.
+< 1–2 % linear; even 5 % explains only 28 %.
 
 ---
 
@@ -111,14 +116,17 @@ A different question, and mostly a **measurement-topology** one.
 
 ## How to say this in one slide
 
-> Measured f₀ is 526 MHz above simulation. The dominant candidate is **incomplete
-> filling of the out-of-plane crests**: EGaIn's very high surface tension makes it
-> bridge a Ø0.5 mm channel undulating ±1 mm rather than follow it. Losing the
-> out-of-plane path entirely shortens the electrical length from 148.7 mm to
-> 123.3 mm and predicts 2.549 GHz — 83 % of the observed shift. The remainder is
-> consistent with Ecoflex ε_r uncertainty, which alone cannot explain more than
-> half. The shallow dip is separately explained by a one-port measurement of a
-> balanced antenna, where the cable is demonstrably part of the radiator.
+> Our best measurement resonates at 2.513 GHz; simulation says 2.114 GHz. The
+> dominant candidate is **incomplete filling of the out-of-plane crests**: EGaIn's
+> surface tension is the highest of any room-temperature liquid metal, so in a
+> Ø0.5 mm channel undulating ±1 mm it bridges the peaks rather than following them.
+> Losing the out-of-plane path shortens the electrical length from 148.7 mm to
+> 123.3 mm and predicts **2.549 GHz — within 36 MHz of what we measured.**
+> Permittivity error cannot be the cause: ε_eff cannot fall below 1, which caps its
+> contribution at 62 %. The shallow dip is a separate matter — a one-port
+> measurement of a *balanced* antenna, where the cable is demonstrably part of the
+> radiator. And the prototype degraded over the day, +127 MHz with the match
+> falling 6 dB, which is what continued loss of conductor looks like.
 
 **The honest framing:** if the crests are empty, the fabricated part is
 electrically the *flat* design, and the strain-tolerance claim is untested in
