@@ -159,7 +159,55 @@ Note the direction of the match: **body loading *improves* S<sub>dd11</sub>**
 (−4.71 → −6.26 dB), because tissue loss adds series resistance. Better match,
 far worse efficiency. That is the trade to present.
 
-### Simulated vs measured — the honest comparison (F18)
+### Measured trace from `harish003.set` (F19) — and it is not the measurement quoted earlier
+
+Extracted by `scripts/parse_zvh_set.py` from the R&S ZVH8 `.set` binary. The
+offset was verified against the on-screen marker (file −10.28 dB vs screen
+−10.27 dB at 2.63999 GHz), so the trace is the instrument's, not a reconstruction.
+
+| | Quoted in the brief | **In `harish003.set`** |
+|---|---|---|
+| f₀ | 2.527 GHz | **2.640 GHz** |
+| \|S11\| at f₀ | −16.2 dB | **−10.28 dB** |
+| −10 dB band | 2.438–3.132 GHz (694 MHz) | **2.616–2.640 GHz (24 MHz)** |
+| \|S11\| at 2.450 GHz | −11.1 dB | **−9.15 dB** |
+
+> 🔴 **These are different measurements.** Every number disagrees, and the
+> bandwidth disagrees by ~29×. Decide which trace is the one you are presenting
+> before the deck is built — they support opposite claims about whether the
+> prototype covers BLE.
+
+**On this trace the prototype does not meet −10 dB across BLE.** It reaches −10 dB
+only over 24 MHz around 2.640 GHz; at 2.450 GHz it is **−9.15 dB**, and across
+2.400–2.4835 it sits between −8.88 and −9.40 dB. Sweep resolution is 24 MHz
+(201 points over 0–4.8 GHz), so f₀ is 2.640 ± 0.012 GHz.
+
+### Simulated vs measured, single-ended (F19)
+
+| | f₀ | at f₀ |
+|---|---|---|
+| Measured | **2.640 GHz** | −10.28 dB |
+| Simulated, free space | **2.114 GHz** | −33.4 dB |
+| Simulated, on body | **1.889 GHz** | −17.6 dB |
+
+**The model resonates 526 MHz below the measurement in free space** (−20 %), and
+the measured dip is far shallower and broader than either simulated one. Two
+readings, and they are not exclusive:
+
+- **The measurement carries a large common-mode / cable contribution.** A shallow,
+  broad, poorly-defined dip is what an unbalanced feed on a balanced antenna looks
+  like. You already showed the cable moves f₀ by 381 MHz, which is the same order
+  as this disagreement.
+- **The fabricated device is not the modelled geometry.** Channel fill, actual
+  `serp_R`, and cured Ecoflex ε_r all move f₀ directly.
+
+⚠️ Single-ended S₁₁ is **not** the quantity this antenna was designed against.
+The design was tuned on differential S<sub>dd11</sub>, which needs a 2-port
+measurement. A one-port reading of one SMA on a balanced antenna is a genuinely
+different quantity — worth stating plainly rather than treating the gap as a
+straight model-vs-reality error.
+
+### The earlier free-space single-ended comparison (F18)
 
 | | Simulated (free space, single-ended) | Measured |
 |---|---|---|
