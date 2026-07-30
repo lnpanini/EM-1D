@@ -1,9 +1,19 @@
 #!/usr/bin/env python3
 """Score every digitisation of the baseline sweep against real ground truth.
 
-The baseline is the one condition with a .set file, so its exact 201 points are
-known. That makes it the only place where a digitising method can actually be
-graded rather than merely compared against another guess.
+One .set file exists, harish003.set, so one sweep has known exact points and a
+digitising method can be graded rather than merely compared with another guess.
+
+WHICH sweep it is, is not fully settled. Scoring all four hand traces against it:
+baseline RMS 0.79 dB and skin RMS 0.82 dB both match closely, while stretch
+(1.39) and bend (1.84) clearly do not. Baseline and skin are genuinely similar
+curves, so RMS cannot separate them. Two other pieces of evidence favour SKIN:
+its printed marker is -10.18 against the .set's -10.28 (baseline's is -11.13,
+0.85 dB away), and it was photographed at 13:23 against the .set at 13:25.
+
+It was earlier assumed to be the baseline. Treat the grade below as "the hand
+method scores ~0.8 dB RMS against a real sweep", which holds either way, rather
+than as a validation of one specific condition.
 
 Result (1.9-3.3 GHz):
     hand-traced   mean +0.09 dB   RMS 0.79 dB   worst 1.95 dB

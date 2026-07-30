@@ -1050,25 +1050,21 @@ def f24():
     -10.69, -11.62 dB against printed -13.70, -14.06, -10.18, -11.13, i.e. within
     0.4-0.9 dB, the residual being trace thickness on a steep slope.
     """
-    # KNOWN BIAS, measured against ground truth. The baseline is the one
-    # condition with a .set file, and scoring the automatic extraction against
-    # its exact 201 points (scripts/check_digitisation.py) gives mean -2.07 dB,
-    # RMS 2.09. The hand trace of the same sweep gives mean +0.09, RMS 0.79. So
-    # these curves sit about 2 dB LOW as drawn. Relative comparison between the
-    # four is unaffected -- same method, same bias -- but do not read absolute
-    # level off them. Hand-tracing the remaining conditions is the fix.
+    # ALL FOUR HAND-TRACED. The automatic extraction is retired for this figure:
+    # scored against the one .set file available it runs 2.1-2.3 dB too deep,
+    # consistently, on two separate conditions. The hand traces come in at
+    # RMS ~0.8 dB with no bias (scripts/check_digitisation.py), so they are both
+    # better AND, being one method across all four, internally consistent -- which
+    # is what a comparison figure needs.
     #
-    # ALL FOUR from the same automatic pipeline, deliberately. Substituting the
-    # hand-traced stretch here was tried and is wrong for a COMPARISON figure:
-    # the two methods differ by ~2.5 dB in absolute level, so the hand-traced
-    # curve sat ~2 dB above the other three below 2.3 GHz and that gap reads as
-    # a difference between CONDITIONS when it is a difference between METHODS.
-    # One method for all four keeps the comparison honest; F25 carries the
-    # method check.
-    CONDS = [("rect_baseline.csv", "Baseline — flat, free space", C_ZWAVE, -11.13),
-             ("rect_stretch.csv",  "Stretched",                   C_SERP,  -13.70),
-             ("rect_bend.csv",     "Bent",                        C_CONC,  -14.06),
-             ("rect_skin.csv",     "On skin",                     C_BODY,  -10.18)]
+    # Their known weakness is the dip: hand traces place it 27-51 MHz LOW and
+    # around 0.9 dB too deep, because eye-tracking the bottom of a narrow V is the
+    # hard case. Read the shapes and the level separations here; take resonance
+    # frequency from the marker, not from the plotted minimum.
+    CONDS = [("manual_baseline.csv", "Baseline — flat, free space", C_ZWAVE, -11.13),
+             ("manual_stretch.csv",  "Stretched",                   C_SERP,  -13.70),
+             ("manual_bend.csv",     "Bent",                        C_CONC,  -14.06),
+             ("manual_skin.csv",     "On skin",                     C_BODY,  -10.18)]
     MF = 2.63999
 
     fig, ax = plt.subplots(figsize=(11, 6.4))

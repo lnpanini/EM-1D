@@ -1,5 +1,5 @@
 condition,dip_freq_GHz,dip_S11_dB,marker_dB_exact
-"Baseline — flat, free space",2.6006,-12.12,-11.13
-Stretched,2.6203,-14.72,-13.7
-Bent,2.5988,-14.63,-14.06
-On skin,2.5665,-11.76,-10.18
+"Baseline — flat, free space",2.5893,-11.1,-11.13
+Stretched,2.6127,-13.71,-13.7
+Bent,2.5945,-14.09,-14.06
+On skin,2.5962,-11.2,-10.18
