@@ -38,6 +38,13 @@ LIGHT = dict(bg="#ffffff", fg="#1d2b3a", band="#2b6cb0", ramp=RAMP_LIGHT)
 SOURCES = {"zwave": ("S11_strain_zwave.csv", "z-wave"),
            "flat": ("S11_strain_flat.csv", "flat control")}
 
+# --- deck style, copied verbatim from scripts/make_presentation_figs.py -----
+# 9x5, one hue with an alpha ramp, so the "match" mode is a drop-in for the
+# existing F22 slide rather than a differently-styled neighbour.
+DECK_FG = "#E8EDF5"
+DECK_ZC, DECK_FC = "#2ECC71", "#FF6B6B"
+DECK_BAND = "#5DA9E9"
+
 
 def read_family(path):
     with open(path) as fh:
@@ -52,6 +59,74 @@ def read_family(path):
 
 def f0_of(freq, s11):
     return freq[min(range(len(s11)), key=lambda i: s11[i])]
+
+
+def draw_match(which, out, dpi, bg, reverse_ramp=False, size=(9.0, 5.0)):
+    """The deck's own F22 style and 9x5 aspect, only the x axis rescaled.
+
+    bg=None reproduces the original transparent background; otherwise the
+    canvas is made opaque in that colour.
+    """
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
+    fname, nice = SOURCES[which]
+    freq, strains, curves = read_family(os.path.join(RES, fname))
+    f0 = f0_of(freq, curves[0])
+    scale = F_TARGET / f0
+    fx = [f * scale for f in freq]
+
+    raw = [100 * (f0_of(freq, c) / f0 - 1) for c in curves]
+    tuned = [100 * (f0_of(fx, c) / F_TARGET - 1) for c in curves]
+    for r, t in zip(raw, tuned):
+        assert abs(r - t) < 1e-9, f"rescale changed the drift: {r} vs {t}"
+
+    face = "none" if bg is None else bg
+    light_canvas = bg == LIGHT["bg"]
+    fg = LIGHT["fg"] if light_canvas else DECK_FG
+    plt.rcParams.update({
+        "figure.facecolor": face, "axes.facecolor": face,
+        "savefig.facecolor": face, "savefig.transparent": bg is None,
+        "text.color": fg, "axes.labelcolor": fg,
+        "axes.edgecolor": fg, "xtick.color": fg,
+        "ytick.color": fg, "grid.color": "#7F8FA6",
+        "font.size": 12, "axes.titlesize": 13, "legend.framealpha": 0.0,
+    })
+
+    # The deck greens are tuned for a dark canvas; on white they wash out,
+    # so the light variant darkens the hue but keeps the same alpha ramp.
+    if light_canvas:
+        col = "#128f4a" if which == "zwave" else "#c62828"
+    else:
+        col = DECK_ZC if which == "zwave" else DECK_FC
+    fig, ax = plt.subplots(figsize=size)
+    ax.axvspan(BLE_LO, BLE_HI, color=DECK_BAND, alpha=0.22, zorder=0)
+    # The deck ramps alpha UP with strain. Once the family is anchored to
+    # 2.44 GHz the 0 % curve is the reference the reader must find first, and
+    # at alpha 0.35 it is the faintest line on the plot -- hence the option to
+    # run the ramp the other way.
+    n = len(curves) - 1
+    for j, (c, s) in enumerate(zip(curves, strains)):
+        k = (n - j) if reverse_ramp else j
+        ax.plot(fx, c, color=col, lw=2, alpha=0.35 + 0.65 * k / n,
+                label=f"{s} % strain")
+    ax.set_xlabel("Frequency (GHz)"), ax.set_ylabel(r"$S_{11}$ (dB)")
+    ax.set_title(f"{nice}: reflection vs uniaxial strain, tuned to 2.44 GHz  "
+                 "(serp_R 8.5, sub_h 6.508)")
+    ax.set_xlim(fx[0], fx[-1])
+    ax.grid(alpha=0.25)
+    # A 5-row legend eats most of the height once the figure is flattened, so
+    # it wraps into columns as the aspect gets wider.
+    ncol = 1 if size[0] / size[1] < 2.1 else 2
+    ax.legend(loc="lower right", fontsize=10, ncol=ncol)
+    fig.tight_layout()
+    fig.savefig(out, dpi=dpi, facecolor=face, transparent=bg is None)
+    plt.close(fig)
+    print(f"wrote {out}")
+    print(f"   f0(0 %) {f0:.4f} GHz -> x{scale:.4f} -> {F_TARGET:.2f} GHz")
+    for s, d in zip(strains, tuned):
+        print(f"   {s:3d} %  {d:+6.2f} %")
 
 
 def draw(pal, which, out, dpi):
@@ -130,6 +205,15 @@ def draw(pal, which, out, dpi):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--which", choices=tuple(SOURCES), default="zwave")
+    ap.add_argument("--style", choices=("match", "poster"), default="match",
+                    help="match = the deck's 9x5 F22 style; poster = redrawn")
+    ap.add_argument("--transparent", action="store_true",
+                    help="match style only: keep the deck's transparent canvas")
+    ap.add_argument("--reverse-ramp", action="store_true",
+                    help="match style only: make 0 %% the boldest curve")
+    ap.add_argument("--size", type=float, nargs=2, metavar=("W", "H"),
+                    default=(9.0, 5.0),
+                    help="match style only: figure size in inches (deck 9 5)")
     ap.add_argument("--dpi", type=int, default=300)
     ap.add_argument("--out", default=os.path.join(ROOT, "deliverables"))
     args = ap.parse_args()
@@ -137,6 +221,19 @@ def main():
     os.makedirs(args.out, exist_ok=True)
     stem = "strain-family-tuned" if args.which == "zwave" \
         else "strain-family-tuned-flat"
+
+    if args.style == "match":
+        size = tuple(args.size)
+        if args.transparent:
+            draw_match(args.which, os.path.join(args.out, f"{stem}.png"),
+                       args.dpi, None, args.reverse_ramp, size)
+            return
+        for bg, suffix in ((DARK["bg"], "dark"), (LIGHT["bg"], "light")):
+            draw_match(args.which,
+                       os.path.join(args.out, f"{stem}-{suffix}.png"),
+                       args.dpi, bg, args.reverse_ramp, size)
+        return
+
     for pal, suffix in ((DARK, "dark"), (LIGHT, "light")):
         draw(pal, args.which, os.path.join(args.out, f"{stem}-{suffix}.png"),
              args.dpi)

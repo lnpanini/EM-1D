@@ -1098,6 +1098,13 @@ def f24():
     for fname, lab, c, mk in CONDS:
         f, y = load(fname)
         y = despike(y)
+        # WHY NOT F19's FULL 1.5-4.0 GHz. It was tried. Outside roughly
+        # 2.1-3.1 GHz these photos stop supporting a trace: the whole sweep is
+        # squeezed into ~630 screen pixels, so one pixel is ~7.6 MHz, and at the
+        # band edges the curve flattens against the graticule where the yellow
+        # mask cannot separate it from the gridlines. The result was near-vertical
+        # excursions above 3.5 GHz that are extraction artifacts, not measurement.
+        # Plotting only where the photos actually carry information.
         sel = (f >= 2.05) & (f <= 3.15)
         f, y = f[sel], y[sel]
         if len(f) < 20:
