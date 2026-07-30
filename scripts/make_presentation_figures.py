@@ -1153,9 +1153,85 @@ def f25():
 
 
 
+def f26():
+    """EVERYTHING on one axis: both simulations, both .set sweeps, all four
+    measured conditions.
+
+    The .set sweep at 13:25 IS the baseline condition -- confirmed by the author.
+    That settles an ambiguity flagged in check_digitisation.py: baseline and skin
+    scored 0.79 and 0.82 dB RMS against it and could not be separated on RMS
+    alone, so the marker value and timestamp had been used to argue for skin.
+    Wrongly. The hand-traced baseline scoring 0.79 dB against it is therefore a
+    genuine like-for-like validation of the hand method.
+
+    Line styles carry the provenance, because these are three different kinds of
+    thing and should not read as one family:
+        dashed          simulated
+        thick solid     measured, exact, straight out of a .set file
+        thin solid      measured, hand-traced off a screen photo (~0.8 dB RMS)
+    """
+    # Seven curves needs its own palette rather than the deck's four-colour code,
+    # which does not stretch this far. White was tried for the 06:33 sweep and
+    # rejected: it vanishes if the figure is ever shown on a light background.
+    S = [
+        ("sim", "zwfree.cst", "Simulated — free space", "#f5c518", "--", 2.0),
+        ("sim", "zwfinal-fab.cst", "Simulated — on body", "#4dd0e1", "--", 2.0),
+        ("set", "measured_S11.csv", "MEASURED baseline — 13:25 (.set)", "#ff5252", "-", 3.0),
+        ("set", "measured_S11_best.csv", "MEASURED 06:33, pre-degradation (.set)", "#b388ff", "-", 3.0),
+        ("hand", "manual_stretch.csv", "Stretched  (traced)", "#69f0ae", "-", 1.9),
+        ("hand", "manual_bend.csv", "Bent  (traced)", "#ff9100", "-", 1.9),
+        ("hand", "manual_skin.csv", "On skin  (traced)", "#40c4ff", "-", 1.9),
+    ]
+
+    fig, ax = plt.subplots(figsize=(12.5, 7.0))
+    dress(ax, xlo=1.5, xhi=4.0, ylab="$S_{11}$ (dB), single-ended, 50 $\Omega$")
+    lo = 0.0
+    for kind, src, lab, col, ls, lw in S:
+        if kind == "sim":
+            f, y = se_s11(src)
+        else:
+            with open(os.path.join(OUT, src), encoding="utf-8") as fh:
+                r = list(csv.reader(fh))[1:]
+            pts = sorted((float(a), float(b)) for a, b in r)
+            f = [a for a, _ in pts]
+            y = [b for _, b in pts]
+        sel = [i for i in range(len(f)) if 1.45 <= f[i] <= 4.05]
+        f = [f[i] for i in sel]
+        y = [y[i] for i in sel]
+        if not f:
+            continue
+        lo = min(lo, min(y))
+        ax.plot(f, y, ls, color=col, lw=lw, label=lab, solid_capstyle="round")
+
+    # Clip at -20. The free-space simulation bottoms out at -33.5 dB and, left
+    # unclipped, squashes every measured curve into the top third of the frame.
+    # It is annotated instead.
+    ax.set_ylim(-20, 0.5)
+    ax.annotate("simulated free space continues off-scale to −33.5 dB at 2.114 GHz",
+                xy=(3.95, -19.5), ha="right", va="bottom", fontsize=9,
+                color="#f5c518", alpha=0.95)
+    # Re-draw the BLE band paler. dress() shades it for the single-condition
+    # figures where it reads fine, but against seven saturated curves the same
+    # green becomes the loudest thing in the frame.
+    for patch in list(ax.patches):
+        patch.remove()
+    ax.axvspan(BLE_LO, BLE_HI, color=FG, alpha=0.09, zorder=0)
+    ax.annotate("BLE", xy=((BLE_LO + BLE_HI) / 2, 0.985),
+                xycoords=("data", "axes fraction"), ha="center", va="top",
+                fontsize=9, color=FG, alpha=0.75)
+    ax.set_title("Everything on one axis — simulated, measured, and the four "
+                 "deformation conditions\n"
+                 "dashed = simulated · thick = exact from .set · thin = hand-traced",
+                 fontsize=12.5)
+    ax.legend(loc="upper center", bbox_to_anchor=(0.5, -0.12), fontsize=9.5,
+              frameon=False, ncol=3)
+    save(fig, "F26_everything.png")
+
+
+
 print(f"writing to {OUT}")
 for fn in (f1, f2, f3, f4, f7, f12, f13, f14, f15, f17, f18, f19, f20, f21, f22,
-           f23, f24, f25):
+           f23, f24, f25, f26):
     try:
         fn()
     except SystemExit as exc:
