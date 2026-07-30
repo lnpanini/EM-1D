@@ -982,8 +982,59 @@ def f22():
               f"{v[1]:7.2f} dB  {v[2]:+7.2f} %")
 
 
+# --------------------------------------------------------------- F23 -------
+def f23():
+    """The z-wave RETUNED so its zero-strain resonance sits in BLE.
+
+    Bare loop, delta-gap port, on body -- NOT the 2 x SSMA fed design, which is
+    tuned on differential Sdd11 and has no dip by construction. Rescaled from the
+    strain-study geometry holding the design's own couplings
+    (z_amp = 0.1181*serp_R, sub_h for 2 mm cover), so the strain optimum is kept.
+    """
+    it = _mod("zwble.cst").get_result_item(SP + "S1,1", 0)
+    f = [float(x) for x in it.get_xdata()]
+    y = [db(complex(v)) for v in it.get_ydata()]
+    f0, d0 = dip(f, y)
+
+    below = [f[i] for i in range(len(f)) if y[i] <= -10.0]
+    lo, hi = min(below), max(below)
+    band = [i for i in range(len(f)) if BLE_LO <= f[i] <= BLE_HI]
+    worst = max(y[i] for i in band)
+
+    fig, ax = plt.subplots(figsize=(10.5, 6.0))
+    dress(ax, xlo=1.8, xhi=3.2, ylab="$S_{11}$ (dB), delta-gap port")
+    ax.axvspan(lo, hi, color=C_ZWAVE, alpha=0.10, zorder=0)
+    ax.plot(f, y, color=C_ZWAVE, lw=2.6,
+            label="Z-wave, retuned — serp_R 7.567, $z_{amp}$ 0.894, "
+                  "sub_h 6.288 mm")
+    ax.plot([f0], [d0], "o", color=C_ZWAVE, ms=10, mec=FG, mew=1.3, zorder=6)
+    ax.annotate(f"$f_0$ = {f0:.3f} GHz\n{d0:.1f} dB", (f0, d0),
+                textcoords="offset points", xytext=(14, 10),
+                color=C_ZWAVE, fontsize=12.5, weight="bold")
+
+    ax.annotate("", xy=(lo, -5.0), xytext=(hi, -5.0),
+                arrowprops=dict(arrowstyle="<->", color=C_ZWAVE, lw=1.6))
+    ax.text((lo + hi) / 2, -4.4,
+            f"$S_{{11}}$ below $-$10 dB over {lo:.3f}–{hi:.3f} GHz" + "\n"
+            + f"{1000*(hi-lo):.0f} MHz ({100*(hi-lo)/f0:.1f} %)",
+            ha="center", va="bottom", color=C_ZWAVE, fontsize=11, weight="bold")
+    ax.text(BLE_LO - 0.02, worst, f"worst across BLE\n{worst:.1f} dB",
+            ha="right", va="center", color=C_BLE, fontsize=11, weight="bold")
+
+    ax.set_ylim(min(y) - 4, 0)
+    ax.set_title("Z-wave retuned to BLE — bare loop, zero strain, on body\n"
+                 "covers 2.400–2.4835 GHz with 7.7 dB of margin", fontsize=13)
+    ax.legend(loc="lower left", framealpha=0.0, fontsize=10)
+    save(fig, "F23_S11_zwave_tuned_BLE.png")
+    write_csv("F23_S11_zwave_tuned_BLE.csv", ["freq_GHz", "S11_dB"],
+              [[f[i], y[i]] for i in range(len(f))])
+    print(f"      F23: f0 {f0:.4f} GHz {d0:.2f} dB, -10 dB {lo:.3f}-{hi:.3f} "
+          f"({1000*(hi-lo):.0f} MHz), worst in BLE {worst:.2f} dB")
+
+
 print(f"writing to {OUT}")
-for fn in (f1, f2, f3, f4, f7, f12, f13, f14, f15, f17, f18, f19, f20, f21, f22):
+for fn in (f1, f2, f3, f4, f7, f12, f13, f14, f15, f17, f18, f19, f20, f21, f22,
+           f23):
     try:
         fn()
     except SystemExit as exc:
