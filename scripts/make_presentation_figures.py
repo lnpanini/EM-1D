@@ -910,8 +910,80 @@ def f21():
           f"full-wave {df[-1]:.2f} % vs {dz[-1]:.2f} %")
 
 
+# --------------------------------------------------------------- F22 -------
+def f22():
+    """The raw S11 families behind the strain comparison, both designs.
+
+    These are the sweeps F2/F21's left panel is derived FROM. Both are bare-loop
+    delta-gap models (no SSMA feed) at serp_R 8.5 / sub_h 6.508, differing only
+    in z_amp, so the pair is a controlled comparison. Neither is tuned to
+    2.45 GHz -- the flat control sits near 2.62, the z-wave near 2.17 -- because
+    the PERCENTAGE shift is the result, not the absolute frequency.
+    """
+    zw = s11_by_strain("zwstrain85.cst")
+    fl = s11_by_strain("zwflatB.cst")
+
+    fig, axes = plt.subplots(1, 2, figsize=(15, 6.0), sharey=True)
+    panels = [(axes[0], fl, C_SERP, "Flat control", "$z_{amp}$ = 0"),
+              (axes[1], zw, C_ZWAVE, "Z-wave", "$z_{amp}$ = 1.004 mm")]
+    table = {}
+
+    for ax, data, base, name, sub in panels:
+        ss = sorted(data)
+        f0_ref = dip(*data[ss[0]])[0]
+        for j, s in enumerate(ss):
+            f, y = data[s]
+            d = dip(f, y)
+            shade = 0.32 + 0.68 * j / max(len(ss) - 1, 1)
+            ax.plot(f, y, color=base, alpha=shade, lw=2.3,
+                    label=f"{100*s:>2.0f} %  →  {d[0]:.3f} GHz  "
+                          f"{100*(d[0]-f0_ref)/f0_ref:+.2f} %")
+            ax.plot([d[0]], [d[1]], "o", color=base, alpha=shade, ms=6,
+                    mec=FG, mew=0.8, zorder=5)
+            table[(name, 100 * s)] = (d[0], d[1],
+                                      100 * (d[0] - f0_ref) / f0_ref)
+        ax.axvspan(BLE_LO, BLE_HI, color=C_BLE, alpha=0.15, zorder=0)
+        ax.axhline(-10, color=FG, lw=1.0, ls="--", alpha=0.7, zorder=1)
+        ax.set_xlim(1.5, 3.2)
+        ax.set_ylim(-40, 13)
+        ax.set_xlabel("Frequency (GHz)")
+        ax.set_title(f"{name} — {sub}\nresonance walks LEFT as strain increases",
+                     fontsize=12.5)
+        ax.grid(True)
+        ax.legend(loc="upper center", framealpha=0.0, fontsize=9.5, ncol=2,
+                  title="applied strain  →  resonance", title_fontsize=10)
+        for s_ in ax.spines.values():
+            s_.set_alpha(0.5)
+    axes[0].set_ylabel("$S_{11}$ (dB), delta-gap port")
+
+    fig.text(0.5, -0.02,
+             "Bare-loop delta-gap models at serp_R 8.5 / sub_h 6.508, identical "
+             "except z_amp. Neither is tuned to 2.45 GHz — the % shift is the "
+             "result, not the absolute frequency.",
+             ha="center", va="top", fontsize=9.5, color=FG, alpha=0.85)
+    fig.tight_layout()
+    save(fig, "F22_S11_strain_families.png")
+
+    # one tidy CSV per design, plus the summary
+    for name, data in (("zwave", zw), ("flat", fl)):
+        ss = sorted(data)
+        ref = data[ss[0]][0]
+        cols = [f"S11_dB_{100*s:.0f}pct" for s in ss]
+        rows = []
+        for i in range(len(ref)):
+            rows.append([ref[i]] + [data[s][1][i] for s in ss])
+        write_csv(f"F22_S11_strain_{name}.csv", ["freq_GHz"] + cols, rows)
+
+    write_csv("F22_resonance_summary.csv",
+              ["design", "strain_pct", "f0_GHz", "S11_min_dB", "delta_f_pct"],
+              [[k[0], k[1], v[0], v[1], v[2]] for k, v in sorted(table.items())])
+    for k, v in sorted(table.items()):
+        print(f"      {k[0]:<13} {k[1]:>3.0f} %  f0 {v[0]:.4f} GHz  "
+              f"{v[1]:7.2f} dB  {v[2]:+7.2f} %")
+
+
 print(f"writing to {OUT}")
-for fn in (f1, f2, f3, f4, f7, f12, f13, f14, f15, f17, f18, f19, f20, f21):
+for fn in (f1, f2, f3, f4, f7, f12, f13, f14, f15, f17, f18, f19, f20, f21, f22):
     try:
         fn()
     except SystemExit as exc:
