@@ -173,7 +173,22 @@ def run(path, mark_f, mark_db, span, out_csv, label=""):
     for x in cy_cols:
         cols.pop(int(x), None)
 
-    # trace y at the marker, from the columns either side of the cyan line
+    # Trace y AT the marker, from the columns either side of the occluding cyan
+    # line.
+    #
+    # KNOWN RESIDUAL, stated rather than papered over. Read back, the anchored
+    # curves give -14.71 / -14.90 / -10.26 / -11.42 dB against printed
+    # -13.70 / -14.06 / -10.18 / -11.13. The error is ~1 dB where the marker sits
+    # on a steep V (stretch, bend) and <0.3 dB where the trace is flat there
+    # (skin, baseline), so it scales with local slope: it is the cost of bridging
+    # the columns the marker line covers.
+    #
+    # A local quadratic fit across the gap was tried instead of the median and
+    # came out marginally WORSE (-14.71 vs -14.62 on stretch), so this is not a
+    # fitting artifact and a cleverer interpolator will not remove it. The real
+    # fix is the instrument's own marker tick, which it draws at the trace
+    # position inside the occluded band -- detecting that is the next step if
+    # this residual ever matters.
     near = [cols[x] for x in cols if 0 < abs(x - xm) <= 14]
     if not near:
         raise SystemExit("no trace either side of the marker line")

@@ -1050,6 +1050,13 @@ def f24():
     -10.69, -11.62 dB against printed -13.70, -14.06, -10.18, -11.13, i.e. within
     0.4-0.9 dB, the residual being trace thickness on a steep slope.
     """
+    # ALL FOUR from the same automatic pipeline, deliberately. Substituting the
+    # hand-traced stretch here was tried and is wrong for a COMPARISON figure:
+    # the two methods differ by ~2.5 dB in absolute level, so the hand-traced
+    # curve sat ~2 dB above the other three below 2.3 GHz and that gap reads as
+    # a difference between CONDITIONS when it is a difference between METHODS.
+    # One method for all four keeps the comparison honest; F25 carries the
+    # method check.
     CONDS = [("rect_baseline.csv", "Baseline — flat, free space", C_ZWAVE, -11.13),
              ("rect_stretch.csv",  "Stretched",                   C_SERP,  -13.70),
              ("rect_bend.csv",     "Bent",                        C_CONC,  -14.06),
@@ -1062,8 +1069,9 @@ def f24():
     for fname, lab, c, mk in CONDS:
         with open(os.path.join(OUT, fname), encoding="utf-8") as fh:
             r = list(csv.reader(fh))[1:]
-        f = [float(a) for a, _ in r]
-        y = [float(b) for _, b in r]
+        pts = sorted((float(a), float(b)) for a, b in r)   # hand traces are unsorted
+        f = [a for a, _ in pts]
+        y = [b for _, b in pts]
         sel = [i for i in range(len(f)) if 1.75 <= f[i] <= 3.45]
         f = [f[i] for i in sel]
         y = [y[i] for i in sel]
@@ -1091,9 +1099,59 @@ def f24():
 
 
 
+def f25():
+    """Method check: the same sweep digitised automatically and by hand.
+
+    The stretch screen is the one condition traced both ways -- by the automatic
+    pipeline here, and by hand off the same corrected image. Two independent
+    methods on identical input, so the spread between them IS the uncertainty on
+    every curve in F24.
+
+    They agree where it matters and disagree where it does not:
+      dip position   2.6203 vs 2.6127 GHz -- 8 MHz apart
+      dip depth      -14.73 vs -13.71 dB
+      absolute level ~2.5 dB RMS offset across 1.9-3.3 GHz
+
+    So dip POSITION is solid to well under 10 MHz, and absolute LEVEL is good to
+    only a couple of dB. Read F24 for where the resonances sit and how they move;
+    quote the marker readouts for level.
+
+    Note the hand trace lands on the printed marker value at its dip (-13.709 vs
+    -13.70) while the automatic one runs ~1 dB deep there, because the marker
+    line occludes exactly the steep V it sits on.
+    """
+    def load(name):
+        with open(os.path.join(OUT, name), encoding="utf-8") as fh:
+            r = list(csv.reader(fh))[1:]
+        pts = sorted((float(a), float(b)) for a, b in r)
+        return [a for a, _ in pts], [b for _, b in pts]
+
+    fa, ya = load("rect_stretch.csv")
+    fm, ym = load("manual_stretch.csv")
+    fig, ax = plt.subplots(figsize=(10, 5.8))
+    dress(ax, xlo=1.8, xhi=3.4, ylab="$S_{11}$ (dB), single-ended, 50 $\Omega$")
+    ax.plot(fa, ya, color=C_SERP, lw=2.4, label="Automatic extraction")
+    ax.plot(fm, ym, color=C_BODY, lw=2.4, ls="--", label="Hand-traced")
+    ax.plot([2.63999], [-13.70], "o", color=FG, ms=10, mec="#10243a", mew=1.2,
+            zorder=6, label="Instrument readout  −13.70 dB")
+    ax.set_ylim(-17, -1)
+    ax.set_title("Same sweep, two independent digitisations — the stretch screen\n"
+                 "dip position agrees to 8 MHz; absolute level differs by ~2.5 dB",
+                 fontsize=12.5)
+    ax.legend(loc="lower right", framealpha=0.0, fontsize=10)
+    save(fig, "F25_digitisation_check.png")
+    n = min(len(fa), len(fm))
+    write_csv("F25_digitisation_check.csv",
+              ["freq_GHz_auto", "S11_dB_auto", "freq_GHz_manual", "S11_dB_manual"],
+              [[fa[i] if i < len(fa) else "", ya[i] if i < len(ya) else "",
+                fm[i] if i < len(fm) else "", ym[i] if i < len(ym) else ""]
+               for i in range(max(len(fa), len(fm)))])
+
+
+
 print(f"writing to {OUT}")
 for fn in (f1, f2, f3, f4, f7, f12, f13, f14, f15, f17, f18, f19, f20, f21, f22,
-           f23, f24):
+           f23, f24, f25):
     try:
         fn()
     except SystemExit as exc:
