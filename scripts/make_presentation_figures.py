@@ -1068,9 +1068,10 @@ def f24():
         f = [f[i] for i in sel]
         y = [y[i] for i in sel]
         ax.plot(f, y, color=c, lw=2.4, label=f"{lab}    marker {mk:+.2f} dB")
+        # Dip triangles and marker circles were dropped at the author's request.
+        # The exact readouts still travel with the figure -- in the legend, and in
+        # the CSV alongside each dip -- they are simply not drawn.
         k = min(range(len(y)), key=lambda i: y[i])
-        ax.plot([f[k]], [y[k]], "v", color=c, ms=10, mec=FG, mew=1.1, zorder=6)
-        ax.plot([MF], [mk], "o", color=c, ms=10, mec=FG, mew=1.4, zorder=7)
         rows.append([lab, round(f[k], 4), round(y[k], 2), mk])
 
     ax.axvline(MF, color=FG, lw=1.0, ls=":", alpha=0.55)
@@ -1079,8 +1080,7 @@ def f24():
                 fontsize=9.5, color=FG, alpha=0.9)
     ax.set_ylim(-17, -1)
     ax.set_title("Measured $S_{11}$, four conditions — from perspective-corrected "
-                 "screens\ncircles = exact marker readouts, triangles = dip",
-                 fontsize=12.5)
+                 "screens", fontsize=13)
     ax.legend(loc="upper center", bbox_to_anchor=(0.5, -0.13), fontsize=10,
               frameon=False, ncol=2)
     save(fig, "F24_measured_conditions.png")
