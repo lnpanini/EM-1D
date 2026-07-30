@@ -1032,9 +1032,105 @@ def f23():
           f"({1000*(hi-lo):.0f} MHz), worst in BLE {worst:.2f} dB")
 
 
+def f24():
+    """Four measured conditions, DIGITISED FROM PHOTOGRAPHS of the VNA screen.
+
+    These four sweeps were never saved to the instrument's SD card, so no .set
+    file exists -- the photos are the only record. scripts/digitise_vna_photo.py
+    rectifies each photo and reads the trace off the graticule.
+
+    WHAT THIS FIGURE IS AND IS NOT. Each trace is anchored to its own on-screen
+    marker readout at 2.63999 GHz, which the instrument prints and is therefore
+    exact. Away from that anchor the digitisation carries a systematic scale error
+    -- checked against the one condition where a .set does exist, it runs to about
+    2 dB across this band. That error is common to all four photos (same
+    instrument, same screen, similar camera geometry), so it largely CANCELS when
+    the conditions are compared against each other.
+
+    So: read the RELATIVE differences and the dip POSITIONS. Do not quote the
+    absolute levels off the curves -- quote the marker points, which are exact.
+
+    An earlier version corrected these against the baseline .set file. That was
+    wrong: the .set is a DIFFERENT sweep four minutes later, and forcing the
+    curves onto it made the baseline disagree with its own marker by 0.85 dB.
+    Per-photo marker anchoring is the correct calibration and is what is used.
+    """
+    import numpy as np
+
+    def load(p):
+        with open(os.path.join(OUT, p), encoding="utf-8") as fh:
+            rows = list(csv.reader(fh))[1:]
+        return (np.array([float(r[0]) for r in rows]),
+                np.array([float(r[1]) for r in rows]))
+
+    def despike(y, k=9, nmad=3.5):
+        """Reject outliers against a moving median, then median-filter.
+
+        A real S11 trace is smooth on the scale of a few sweep points, so a single
+        column that sits many median-absolute-deviations away from its neighbours
+        is an extraction artifact (a gridline or the marker bar clipped into the
+        yellow mask), not signal. Points failing the MAD test are dropped and
+        linearly interpolated across. This is a fixed statistical rule, not a
+        threshold tuned until the picture looked right.
+        """
+        h = k // 2
+        med = np.array([np.median(y[max(0, i - h):i + h + 1])
+                        for i in range(len(y))])
+        mad = np.median(np.abs(y - med)) or 1e-6
+        good = np.abs(y - med) < nmad * 1.4826 * mad
+        if good.sum() < 10:
+            return med
+        idx = np.arange(len(y))
+        y = np.interp(idx, idx[good], y[good])
+        return np.array([np.median(y[max(0, i - 2):i + 3]) for i in range(len(y))])
+
+    MF = 2.63999
+    CONDS = [
+        ("digitised_baseline.csv", "Baseline — flat, free space", C_ZWAVE, -11.13),
+        ("digitised_stretch.csv",  "Stretched",                    C_SERP,  -13.70),
+        ("digitised_bending.csv",  "Bent",                         C_CONC,  -14.06),
+        ("digitised_onskin.csv",   "On skin",                      C_BODY,  -10.18),
+    ]
+
+    fig, ax = plt.subplots(figsize=(11, 6.6))
+    dress(ax, xlo=2.1, xhi=3.1, ylab="$S_{11}$ (dB), single-ended, 50 $\Omega$")
+    rows = []
+    for fname, lab, c, mk in CONDS:
+        f, y = load(fname)
+        y = despike(y)
+        sel = (f >= 2.05) & (f <= 3.15)
+        f, y = f[sel], y[sel]
+        if len(f) < 20:
+            continue
+        y = y + (mk - np.interp(MF, f, y))      # re-anchor after smoothing
+        ax.plot(f, y, color=c, lw=2.5, label=f"{lab}    marker {mk:+.2f} dB")
+        ax.plot([MF], [mk], "o", color=c, ms=11, mec=FG, mew=1.5, zorder=6)
+        k = int(np.argmin(y))
+        ax.plot([f[k]], [y[k]], "v", color=c, ms=9, mec=FG, mew=1.0, zorder=6)
+        rows.append([lab, round(float(f[k]), 4), round(float(y[k]), 2), mk])
+
+    ax.axvline(MF, color=FG, lw=1.0, ls=":", alpha=0.55)
+    ax.annotate("2.640 GHz\nexact marker readouts", xy=(MF, 0.03),
+                xycoords=("data", "axes fraction"), ha="center", va="bottom",
+                fontsize=9.5, color=FG, alpha=0.9)
+    ax.set_ylim(-19, -2)
+    ax.set_title("Measured $S_{11}$, four conditions — DIGITISED FROM PHOTOS\n"
+                 "circles = exact instrument readouts; triangles = dip position; "
+                 "absolute level ±2 dB", fontsize=12)
+    ax.legend(loc="upper center", bbox_to_anchor=(0.5, -0.13), fontsize=10,
+              frameon=False, ncol=2)
+    save(fig, "F24_measured_conditions.png")
+    write_csv("F24_measured_conditions.csv",
+              ["condition", "dip_freq_GHz", "dip_S11_dB_approx",
+               "exact_marker_dB_at_2p63999_GHz"], rows)
+    for r in rows:
+        print(f"      F24 {r[0]:<30} dip {r[1]:.3f} GHz {r[2]:+6.2f} dB   "
+              f"marker {r[3]:+.2f} dB")
+
+
 print(f"writing to {OUT}")
 for fn in (f1, f2, f3, f4, f7, f12, f13, f14, f15, f17, f18, f19, f20, f21, f22,
-           f23):
+           f23, f24):
     try:
         fn()
     except SystemExit as exc:
