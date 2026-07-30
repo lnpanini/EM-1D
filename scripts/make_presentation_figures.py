@@ -1050,6 +1050,14 @@ def f24():
     -10.69, -11.62 dB against printed -13.70, -14.06, -10.18, -11.13, i.e. within
     0.4-0.9 dB, the residual being trace thickness on a steep slope.
     """
+    # KNOWN BIAS, measured against ground truth. The baseline is the one
+    # condition with a .set file, and scoring the automatic extraction against
+    # its exact 201 points (scripts/check_digitisation.py) gives mean -2.07 dB,
+    # RMS 2.09. The hand trace of the same sweep gives mean +0.09, RMS 0.79. So
+    # these curves sit about 2 dB LOW as drawn. Relative comparison between the
+    # four is unaffected -- same method, same bias -- but do not read absolute
+    # level off them. Hand-tracing the remaining conditions is the fix.
+    #
     # ALL FOUR from the same automatic pipeline, deliberately. Substituting the
     # hand-traced stretch here was tried and is wrong for a COMPARISON figure:
     # the two methods differ by ~2.5 dB in absolute level, so the hand-traced
