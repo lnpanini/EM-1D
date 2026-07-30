@@ -793,8 +793,125 @@ def f20():
 
 C_BEST_OK = "#7CFC98"
 
+
+# --------------------------------------------------------------- F21 -------
+def f21():
+    """Result + mechanism, side by side, at the CURRENT design point.
+
+    LEFT  full-wave CST drift (zwstrain85 vs zwflatB, matched geometry)
+    RIGHT geometric conductor path length, integrated from the macro's own curve
+
+    The two panels deliberately do NOT agree in magnitude, and the caption says
+    so: path length predicts ~0 % for the z-wave, full-wave measures -7.82 %.
+    Path length is about half the story -- see docs/ZWAVE-STRAIN-FINDINGS.md.
+    """
+    R, AMP, SKEW, NU, GAP = 8.5, 1.7, 0.425, 12, 1.0
+    Z_AMP, Z_CYC, M = 1.004, 24, 400_000
+    STRAINS = (0.0, 0.05, 0.10, 0.15, 0.20)
+
+    def arc(e, z_amp):
+        lx, lt = 1 + e, 1 / math.sqrt(1 + e)
+        dg = min(GAP / (R + AMP + 2 * SKEW * NU), 0.6)
+        tA, tB = dg / 2, 2 * math.pi - dg / 2
+        tot, prev = 0.0, None
+        for i in range(M + 1):
+            t = tA + (tB - tA) * i / M
+            uu = R + AMP * math.sin(NU * t + math.pi / 2)
+            vv = SKEW * math.sin(2 * NU * t + math.pi)
+            ct, st = math.cos(t), math.sin(t)
+            p = (lx * (uu * ct + vv * st), lt * (uu * st - vv * ct),
+                 lt * z_amp * math.cos(Z_CYC * t))
+            if prev is not None:
+                tot += math.dist(p, prev)
+            prev = p
+        return tot
+
+    Lz = [arc(e, Z_AMP) for e in STRAINS]
+    Lf = [arc(e, 0.0) for e in STRAINS]
+    dLz = [100 * (v / Lz[0] - 1) for v in Lz]
+    dLf = [100 * (v / Lf[0] - 1) for v in Lf]
+
+    zw, fl = s11_by_strain("zwstrain85.cst"), s11_by_strain("zwflatB.cst")
+
+    def drift(data):
+        ss = sorted(data)
+        f0 = dip(*data[ss[0]])[0]
+        return [100 * s for s in ss], [100 * (dip(*data[s])[0] - f0) / f0
+                                       for s in ss]
+
+    xz, dz = drift(zw)
+    xf, df = drift(fl)
+
+    fig, (axL, axR) = plt.subplots(1, 2, figsize=(14.5, 5.9))
+
+    # ---- left: full-wave result ----
+    axL.axhspan(-1.7, 1.7, color=C_SERP, alpha=0.13, zorder=0)
+    axL.text(0.25, 1.72, "BLE tolerance ±1.7 %", fontsize=10, color=C_SERP,
+             va="bottom")
+    axL.plot(xf, df, "o-", color=C_SERP, lw=2.5, ms=8, mec=FG, mew=1.0,
+             label="flat control  ($z_{amp}$ = 0)")
+    axL.plot(xz, dz, "s-", color=C_ZWAVE, lw=2.5, ms=8, mec=FG, mew=1.0,
+             label="z-wave  ($z_{amp}$ = 1.004 mm)")
+    for x, y, c in ((xf[-1], df[-1], C_SERP), (xz[-1], dz[-1], C_ZWAVE)):
+        axL.annotate(f"{y:+.2f} %", (x, y), textcoords="offset points",
+                     xytext=(-14, -20), color=c, fontsize=12.5, weight="bold")
+    axL.axhline(0, color=FG, lw=0.8, ls=":", alpha=0.55)
+    axL.set_xlabel("Uniaxial strain (%)")
+    axL.set_ylabel("$\\Delta f_0$ (%)")
+    axL.set_title("FULL-WAVE result — frequency drift\n"
+                  f"{dz[-1]:.2f} % vs {df[-1]:.2f} % at 20 %  →  "
+                  f"{100*(1-dz[-1]/df[-1]):.0f} % less drift", fontsize=12.5)
+    axL.legend(loc="lower left", framealpha=0.0, fontsize=10.5)
+    axL.grid(True)
+
+    # ---- right: geometric mechanism ----
+    xs = [100 * e for e in STRAINS]
+    axR.plot(xs, dLf, "o-", color=C_SERP, lw=2.5, ms=8, mec=FG, mew=1.0,
+             label="flat conductor length")
+    axR.plot(xs, dLz, "s-", color=C_ZWAVE, lw=2.5, ms=8, mec=FG, mew=1.0,
+             label="z-wave conductor length")
+    axR.axhline(0, color=FG, lw=0.8, ls=":", alpha=0.55)
+    axR.annotate(f"{dLf[-1]:+.2f} %", (xs[-1], dLf[-1]),
+                 textcoords="offset points", xytext=(-52, -4),
+                 color=C_SERP, fontsize=12.5, weight="bold")
+    axR.annotate(f"{dLz[-1]:+.3f} %", (xs[-1], dLz[-1]),
+                 textcoords="offset points", xytext=(-48, 12),
+                 color=C_ZWAVE, fontsize=12.5, weight="bold")
+    axR.set_xlabel("Uniaxial strain (%)")
+    axR.set_ylabel("$\\Delta L$ (%)")
+    axR.set_title("MECHANISM — conductor path length\n"
+                  f"flat grows {dLf[-1]:+.2f} %, z-wave stays within "
+                  f"{max(abs(v) for v in dLz):.2f} %", fontsize=12.5)
+    axR.legend(loc="upper left", framealpha=0.0, fontsize=10.5)
+    axR.grid(True)
+
+    for ax in (axL, axR):
+        for s_ in ax.spines.values():
+            s_.set_alpha(0.5)
+
+    fig.text(0.5, -0.035,
+             "The two panels differ in magnitude on purpose: path length alone "
+             "predicts ~0 % for the z-wave, full-wave measures −7.82 %. "
+             "Path growth is about half the drift —\nthe rest is substrate "
+             "thinning changing body standoff, and only ~62 % of out-of-plane "
+             "length being electrically realised.",
+             ha="center", va="top", fontsize=9.5, color=FG, alpha=0.85)
+
+    fig.tight_layout()
+    save(fig, "F21_result_and_mechanism.png")
+    write_csv("F21_result_and_mechanism.csv",
+              ["strain_pct", "dL_pct_zwave", "dL_pct_flat",
+               "df0_pct_zwave_fullwave", "df0_pct_flat_fullwave"],
+              [[xs[i], dLz[i], dLf[i],
+                dz[i] if i < len(dz) else "",
+                df[i] if i < len(df) else ""] for i in range(len(xs))])
+    print(f"      F21: dL flat {dLf[-1]:+.3f} %, dL z-wave {dLz[-1]:+.4f} % "
+          f"(max |dL| {max(abs(v) for v in dLz):.3f} %); "
+          f"full-wave {df[-1]:.2f} % vs {dz[-1]:.2f} %")
+
+
 print(f"writing to {OUT}")
-for fn in (f1, f2, f3, f4, f7, f12, f13, f14, f15, f17, f18, f19, f20):
+for fn in (f1, f2, f3, f4, f7, f12, f13, f14, f15, f17, f18, f19, f20, f21):
     try:
         fn()
     except SystemExit as exc:
