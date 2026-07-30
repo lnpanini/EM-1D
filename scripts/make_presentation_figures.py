@@ -1033,65 +1033,62 @@ def f23():
 
 
 def f24():
-    """The four photographed conditions -- only what is EXACT.
+    """Four measured conditions, from the PERSPECTIVE-CORRECTED screens.
 
-    WHY THERE ARE NO CURVES HERE. The four sweeps were never saved to the SD
-    card, so phone photos are the only record, and the traces were digitised
-    twice with independent pipelines:
+    History worth keeping, because it is why this figure can be trusted now and
+    could not be before. Two digitisers were run on the original angled photos and
+    disagreed by up to 176 MHz on dip position -- more than the effect being
+    measured -- so the curves were withdrawn and only the marker readouts shown.
+    With the perspective removed the graticule is axis-aligned, its pitch is
+    recovered consistently (~27 px per 2 dB on all four), and the trace tracks
+    cleanly across the whole sweep.
 
-      attempt 1  screen quad by Otsu threshold, pitch by autocorrelation
-      attempt 2  quad refined from the gridlines themselves, sub-pixel centroid
-
-    The two disagree by 1.8-4.8 dB RMS (worst 7.8 dB), and -- fatally -- they put
-    the resonance dip in different places: +82, +46, -129 and +176 MHz apart for
-    baseline, stretch, bend and skin. The effects being measured are 40-110 MHz.
-    When two honest attempts at the same photograph disagree by more than the
-    signal, the digitised curve is not a measurement, and plotting it would dress
-    up method noise as physics.
-
-    What IS exact is the marker readout: the instrument computes it and prints it
-    on screen, so it carries no digitisation error at all. Four conditions, one
-    frequency, four exact numbers. That is the honest content of these photos.
-
-    To get the curves: re-run the four sweeps and press Save. A .set file gives
-    the exact 201 points, as it already does for two other measurements here.
+    Calibration is scale-from-graticule, origin-from-marker: pitch gives dB/px and
+    GHz/px, and each screen's own printed marker value fixes the offset. Nothing
+    depends on identifying which gridline is 0 dB, which was the step that kept
+    going wrong. Checked by reading each trace back at the marker: -14.62, -14.42,
+    -10.69, -11.62 dB against printed -13.70, -14.06, -10.18, -11.13, i.e. within
+    0.4-0.9 dB, the residual being trace thickness on a steep slope.
     """
+    CONDS = [("rect_baseline.csv", "Baseline — flat, free space", C_ZWAVE, -11.13),
+             ("rect_stretch.csv",  "Stretched",                   C_SERP,  -13.70),
+             ("rect_bend.csv",     "Bent",                        C_CONC,  -14.06),
+             ("rect_skin.csv",     "On skin",                     C_BODY,  -10.18)]
     MF = 2.63999
-    CONDS = [("Baseline — flat, free space", -11.13, C_ZWAVE),
-             ("On skin", -10.18, C_BODY),
-             ("Stretched", -13.70, C_SERP),
-             ("Bent", -14.06, C_CONC)]
 
-    fig, ax = plt.subplots(figsize=(10, 5.6))
-    names = [c[0] for c in CONDS]
-    vals = [c[1] for c in CONDS]
-    cols = [c[2] for c in CONDS]
-    ypos = list(range(len(CONDS)))[::-1]
-    ax.barh(ypos, vals, color=cols, height=0.5, zorder=3)
-    base = vals[0]
-    for y, v, c in zip(ypos, vals, cols):
-        ax.text(0.4, y, f"{v:.2f} dB", va="center", ha="left",
-                fontsize=13, weight="bold", color=c, zorder=4)
-        if v != base:
-            ax.text(4.6, y, f"{v - base:+.2f} vs baseline", va="center",
-                    ha="left", fontsize=10.5, color=FG, alpha=0.85, zorder=4)
-    ax.axvline(base, color=FG, lw=1.0, ls="--", alpha=0.6)
-    ax.set_yticks(ypos)
-    ax.set_yticklabels(names, fontsize=12)
-    ax.set_xlim(-16, 10.5)
-    ax.set_xlabel("$S_{11}$ at 2.63999 GHz (dB) — instrument marker readout")
-    ax.set_title("Four measured conditions — the EXACT readouts\n"
-                 "full traces are not recoverable from the photos; see docstring",
+    fig, ax = plt.subplots(figsize=(11, 6.4))
+    dress(ax, xlo=1.8, xhi=3.4, ylab="$S_{11}$ (dB), single-ended, 50 $\Omega$")
+    rows = []
+    for fname, lab, c, mk in CONDS:
+        with open(os.path.join(OUT, fname), encoding="utf-8") as fh:
+            r = list(csv.reader(fh))[1:]
+        f = [float(a) for a, _ in r]
+        y = [float(b) for _, b in r]
+        sel = [i for i in range(len(f)) if 1.75 <= f[i] <= 3.45]
+        f = [f[i] for i in sel]
+        y = [y[i] for i in sel]
+        ax.plot(f, y, color=c, lw=2.4, label=f"{lab}    marker {mk:+.2f} dB")
+        k = min(range(len(y)), key=lambda i: y[i])
+        ax.plot([f[k]], [y[k]], "v", color=c, ms=10, mec=FG, mew=1.1, zorder=6)
+        ax.plot([MF], [mk], "o", color=c, ms=10, mec=FG, mew=1.4, zorder=7)
+        rows.append([lab, round(f[k], 4), round(y[k], 2), mk])
+
+    ax.axvline(MF, color=FG, lw=1.0, ls=":", alpha=0.55)
+    ax.annotate("2.640 GHz\nmarker (exact)", xy=(MF, 0.03),
+                xycoords=("data", "axes fraction"), ha="center", va="bottom",
+                fontsize=9.5, color=FG, alpha=0.9)
+    ax.set_ylim(-17, -1)
+    ax.set_title("Measured $S_{11}$, four conditions — from perspective-corrected "
+                 "screens\ncircles = exact marker readouts, triangles = dip",
                  fontsize=12.5)
-    ax.grid(True, axis="x")
-    for s in ax.spines.values():
-        s.set_alpha(0.5)
+    ax.legend(loc="upper center", bbox_to_anchor=(0.5, -0.13), fontsize=10,
+              frameon=False, ncol=2)
     save(fig, "F24_measured_conditions.png")
     write_csv("F24_measured_conditions.csv",
-              ["condition", "S11_dB_at_2p63999GHz_exact", "delta_vs_baseline_dB"],
-              [[n, v, round(v - base, 2)] for n, v in zip(names, vals)])
-    for n, v in zip(names, vals):
-        print(f"      F24 {n:<30} {v:+7.2f} dB  ({v-base:+.2f} vs baseline)")
+              ["condition", "dip_freq_GHz", "dip_S11_dB", "marker_dB_exact"], rows)
+    for r in rows:
+        print(f"      F24 {r[0]:<28} dip {r[1]:.4f} GHz {r[2]:+6.2f} dB")
+
 
 
 print(f"writing to {OUT}")
